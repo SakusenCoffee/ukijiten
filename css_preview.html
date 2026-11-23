@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* BASE_CSS */
+.preview-canvas {
+  height: 100%;
+  padding: 10px;
+  background-color: #242833;
+  background-image: linear-gradient(45deg, #2a2e39 25%, transparent 25%),
+    linear-gradient(-45deg, #2a2e39 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #2a2e39 75%),
+    linear-gradient(-45deg, transparent 75%, #2a2e39 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}
+body { padding: 0; }
+.preview-canvas .panel { min-height: 100%; }
+</style>
+<style id="custom-css"></style>
+<style>
+.preview-canvas [data-preview-hover] { cursor: copy; }
+.preview-canvas [data-preview-hover]:hover { outline: 1px dashed rgba(219,166,217,.65); outline-offset: 3px; }
+</style>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body>
+<div class="preview-canvas">
+  <main class="panel PREVIEW_PANEL_CLASS">
+    <header class="toolbar" data-preview-hover>
+      <span class="drag" data-preview-hover>⋮⋮</span>
+      <span class="brand" data-preview-hover>日本語 <small data-preview-hover>DICTIONARY</small></span>
+      <button type="button" data-preview-hover>⚙</button>
+    </header>
+    <div class="searchbar" data-preview-hover>
+      <span class="search-icon" data-preview-hover>⌕</span>
+      <input value="読む" readonly data-preview-hover>
+    </div>
+    <div class="results" data-preview-hover>
+      <nav class="dictionary-nav" data-preview-hover><a href="#sample-entry" data-preview-hover>PREVIEW_DICTIONARY</a></nav>
+      <section class="dictionary" data-preview-hover>
+        <h2 data-preview-hover>PREVIEW_DICTIONARY</h2>
+        <article class="entry" id="sample-entry" data-preview-hover>
+          <h3 data-preview-hover>読む</h3>
+          <div class="reading" data-preview-hover>よむ</div>
+          <div class="definition" data-preview-hover>PREVIEW_DEFINITION</div>
+        </article>
+      </section>
+    </div>
+  </main>
+</div>
+<script>
+let previewBridge = null;
+new QWebChannel(qt.webChannelTransport, channel => {
+  previewBridge = channel.objects.preview;
+});
+function setPreviewCSS(css) {
+  document.getElementById('custom-css').textContent = css;
+}
+const selectorTargets = [
+  '.definition a', '.definition strong', '.definition b', '.definition em',
+  '.definition li', '.definition ul', '.definition ol', '.definition p',
+  '.definition table', '.definition td', '.definition th', '.definition blockquote',
+  '.media', '.entry h3', '.reading', '.dictionary h2', '.dictionary-nav a',
+  '.brand small', '.brand', '.search-icon', 'input', '.definition',
+  '.entry', '.dictionary', '.dictionary-nav', '.results', '.searchbar',
+  '.toolbar', '.drag', 'button', '.panel'
+];
+document.addEventListener('click', event => {
+  const element = event.target;
+  for (const selector of selectorTargets) {
+    if (element.closest(selector)) {
+      event.preventDefault();
+      if (previewBridge) previewBridge.selectCss(selector);
+      return;
+    }
+  }
+});
+</script>
+</body>
+</html>

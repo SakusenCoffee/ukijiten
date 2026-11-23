@@ -1,0 +1,22 @@
+@font-face { font-family:"Zen Maru Gothic";src:url("assets/fonts/zenmarugothic/ZenMaruGothic-Regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap; }
+@font-face { font-family:"Yomogi";src:url("assets/fonts/yomogi/Yomogi-Regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap; }
+@font-face { font-family:"Hachi Maru Pop";src:url("assets/fonts/hachimarupop/HachiMaruPop-Regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap; }
+.entry,#content article { font-family:var(--entry-font-family,var(--font,"Noto Sans CJK JP",sans-serif)); }
+.entry h3,article h2 { font-size:var(--font-headword,28px)!important; }
+.reading { font-size:var(--font-reading,14px)!important; }
+.definition { font-size:var(--font-definition,15px)!important; }
+.definition .example-sentence,.definition blockquote { font-size:var(--font-example,15px)!important; }
+.frequency-row { font-size:var(--font-frequency,12px)!important; }
+.pitch-row { font-size:var(--font-pitch,14px)!important; }
+.pitch-badge { font-size:.78em!important; }
+.pitch-position { font-size:.85em!important; }
+.pitch-graph { width:auto;height:1.72em; }
+.headword-character { color:inherit!important;text-decoration:none;cursor:pointer; }
+.headword-character:hover,.headword-character:focus-visible { text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.12em; }
+.character-headword { font-family:var(--entry-font-family);font-size:var(--font-headword,28px);margin:12px 0; }
+.kanji-readings,.kanji-tags { margin:8px 0; }
+.kanji-tags { font-size:var(--font-reading,14px);color:var(--muted); }
+.kanji-stats { display:flex;flex-wrap:wrap;gap:8px 20px;font-size:var(--font-reading,14px); }
+.kanji-stats>div { display:flex;gap:8px; }
+.kanji-stats dt { color:var(--muted); }
+.kanji-stats dd { margin:0; }

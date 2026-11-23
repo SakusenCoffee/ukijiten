@@ -1,0 +1,25 @@
+.pitch-row { display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:9px 0 14px;color:var(--text,#e3dfed);line-height:1.8;font-size:14px; }
+.pitch-badge { display:inline-block;background:#6952aa;color:#fff;border-radius:5px;padding:1px 7px;font:600 11px var(--font,sans-serif);letter-spacing:.02em; }
+.pitch-variant { display:inline-flex;align-items:center;gap:7px;max-width:100%; }
+.pitch-word { display:inline-flex;white-space:nowrap;line-height:1.5;padding-top:3px; }
+.pitch-mora { position:relative;display:inline-block;border-top:1px solid transparent; }
+.pitch-high { border-top-color:currentColor; }
+.pitch-drop::after { content:'';position:absolute;right:0;top:-1px;height:.5em;border-right:1px solid currentColor; }
+.pitch-position { color:var(--muted,#b7afc2);font-size:12px; }
+.pitch-graph { flex:none;overflow:visible;stroke:currentColor;stroke-width:1.4;fill:none; }
+.pitch-graph circle { fill:currentColor;stroke:none; }
+.pitch-tail { stroke-dasharray:2 2; }
+.pitch-particle { fill:none; }
+.pitch-unavailable { color:var(--muted,#8e8799);font-size:12px; }
+.frequency-row { display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:7px 0;font-size:12px; }
+.metadata-source { color:var(--muted,#aeb8c7); }
+.frequency-value { border:1px solid #9db6d638;background:#87a1cb15;border-radius:6px;padding:2px 7px;color:var(--text,#e7edf1); }
+.metadata-selector { border:1px solid #ffffff20;border-radius:10px;margin:10px 0;padding:0 14px; }
+.metadata-selector summary { cursor:pointer;padding:12px 0;font-weight:600; }
+.pitch-row { flex-wrap:nowrap;overflow-x:auto;max-width:100%;gap:18px; }
+.pitch-source { display:inline-flex;flex:none;align-items:center;gap:8px;white-space:nowrap; }
+#inline-settings .metadata-source-row { display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;cursor:grab; }
+#inline-settings .dictionary-back-icon { display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;padding:0;vertical-align:middle; }
+.settings-navigation { display:flex;align-items:center;gap:10px; }
+.frequency-row { flex-wrap:nowrap;overflow-x:auto;max-width:100%;gap:18px; }
+.frequency-source { display:inline-flex;align-items:center;flex:none;gap:7px;white-space:nowrap; }

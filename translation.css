@@ -1,0 +1,28 @@
+#toolbar #reading-stats-button { margin-right:0; }
+#toolbar #translation-button { margin-right:0;flex:none; }
+#inline-settings:has(.translation-pane) { padding:0;container-type:inline-size; }
+.translation-pane { width:100%;max-width:1320px;margin:auto;padding:clamp(18px,4cqw,48px); }
+.translation-heading { display:flex;align-items:center;gap:14px;margin-bottom:24px; }
+#inline-settings .translation-heading h2 { margin:0; }
+.translation-connection { margin-bottom:20px;padding:0 14px; }
+.translation-connection>summary { display:flex;align-items:center;gap:8px;list-style:none; }
+.translation-connection>summary::-webkit-details-marker { display:none; }
+.translation-connection>summary::after { content:'›';font-size:19px;font-weight:400; }
+.translation-connection[open]>summary::after { transform:rotate(90deg); }
+.translation-provider-settings { padding:10px 0 2px; }
+.translation-field { display:grid;gap:6px;margin-bottom:14px;font-size:14px; }
+#inline-settings .translation-field input,#inline-settings .translation-field select { width:100%;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--settings-button-bg);color:var(--text);font:inherit; }
+.translation-connection-actions,.translation-actions { display:flex;flex-wrap:wrap;gap:8px;margin:12px 0; }
+.translation-editors { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px; }
+.translation-editors[data-layout=rows] { grid-template-columns:minmax(0,1fr); }
+#translation-run .translation-shortcut { font-size:.68em;font-weight:400;opacity:.75; }
+#inline-settings #translation-layout { display:inline-flex;align-items:center;justify-content:center; }
+.translation-editor { display:flex;flex-direction:column;min-width:0;padding:16px;margin:0; }
+.translation-editor-heading { display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:36px;margin-bottom:10px;font-size:14px; }
+#inline-settings .translation-editor select { width:auto;min-width:0;max-width:100%;padding:6px 8px;background:#172124;border:1px solid #ffffff25;border-radius:8px;color:#eee;font:inherit; }
+#inline-settings .translation-editor textarea { width:100%;min-height:300px;flex:1;resize:vertical;border:0;outline:0;background:transparent;color:#f3f0f7;font:var(--font-definition,16px)/1.8 var(--entry-font-family,var(--font));padding:0; }
+#inline-settings .translation-editor textarea::placeholder { color:#a8b5b9; }
+.translation-editor:focus-within { border-color:var(--accent); }
+.translation-editor button { color:#adb5c8!important; }
+.translation-actions [hidden] { display:none!important; }
+.translation-pane button:disabled { opacity:.55;cursor:default; }

@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#141414;color:#eee;font:15px "Noto Sans CJK JP",sans-serif}body{border:1px solid #555;border-radius:12px;overflow:hidden;display:flex;flex-direction:column}header{display:flex;align-items:center;justify-content:space-between;padding:8px 15px;border-bottom:1px solid #333;color:#adb5c8;font-size:12px}button{background:none;color:#ccc;border:0;font-size:22px;cursor:pointer}main{overflow:auto;padding:0 18px 18px;flex:1;scrollbar-width:thin;scrollbar-color:#555 transparent}article{border-bottom:1px solid #333;padding:14px 0;line-height:1.7}h2{font-size:25px;line-height:1.4;margin:4px 0}small,.reading{color:#aeb5c5;font-size:12px}a{color:#a8cfff}img{max-width:100%}
+#popup-background{position:absolute;inset:0;pointer-events:none;background-size:cover;background-position:center;border-radius:inherit;z-index:0}body>header,body>main{position:relative;z-index:1}header,small,.reading{color:var(--muted,#aeb5c5)}.pitch-row{color:inherit}</style><script src="qrc:///qtwebchannel/qwebchannel.js"></script></head><body><div id="popup-background" aria-hidden="true"></div><header><div><button id="popup-back" title="Back to word" aria-label="Back to word" hidden>‹</button><span id="popup-title">Dictionary lookup</span></div><button title="Close popup" aria-label="Close popup" id="close">×</button></header><main id="content"></main><script>
+/* ENTRY_FONT_JS */
+function applyPopupAppearance(values){
+  const color=values.background_color||'#141414';document.documentElement.style.backgroundColor='transparent';
+  const rgb=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16));
+  document.body.style.backgroundColor='rgba('+rgb.join(',')+','+(values.opacity??100)/100+')';
+  const light=rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722>150;document.body.style.color=light?'#15191b':'#eee';
+  document.documentElement.style.setProperty('--text',light?'#15191b':'#eee');document.documentElement.style.setProperty('--muted',light?'#44525c':'#aeb5c5');
+  const background=document.getElementById('popup-background');
+  background.style.backgroundImage=values.background_show_popup!==false&&values.background_url?'url('+JSON.stringify(values.background_url)+')':'none';
+  background.style.opacity=(values.opacity??100)/100*(values.dictionary_image_opacity??100)/100;
+  background.style.filter='blur('+(values.dictionary_image_blur||0)+'px)';
+  background.style.transform='scale('+(values.background_mirror_x?-1:1)+','+(values.background_mirror_y?-1:1)+')';
+  applyEntryFonts(values);
+}
+let app=null;new QWebChannel(qt.webChannelTransport,c=>app=c.objects.app);
+function renderPopup(markup,title='Dictionary lookup',canBack=false){document.getElementById('content').innerHTML=markup;document.getElementById('content').scrollTop=0;document.getElementById('popup-title').textContent=title;document.getElementById('popup-back').hidden=!canBack;}
+/* CHARACTER_LINKS_JS */
+bindCharacterLinks(document.getElementById('content'),true);
+document.getElementById('popup-back').onclick=()=>app&&app.popup_back();
+document.addEventListener('pointerdown',()=>{if(app)app.popup_pointer_press();},true);
+const header=document.querySelector('header');header.style.cursor='move';
+header.addEventListener('pointerdown',event=>{if(event.button!==0||event.target.closest('button')||!app)return;event.preventDefault();header.setPointerCapture(event.pointerId);app.popup_drag_start(Math.round(event.screenX),Math.round(event.screenY));});
+header.addEventListener('pointermove',event=>{if(header.hasPointerCapture(event.pointerId)&&app)app.popup_drag_move(Math.round(event.screenX),Math.round(event.screenY));});
+for(const type of ['pointerup','pointercancel'])header.addEventListener(type,event=>{if(app)app.popup_drag_end();});
+document.getElementById('close').onclick=()=>app&&app.dismiss_popup();
+document.addEventListener('keyup',event=>{if(app)app.release_scan_key(['Shift','Control','Alt','Meta'].includes(event.key)?event.key:event.code);});
+
+document.addEventListener('click',event=>{const link=event.target.closest('a[href^="?query="]');if(!link||!app)return;event.preventDefault();const word=new URLSearchParams(link.getAttribute('href').slice(1)).get('query');if(word)app.search(word);});
+</script></body></html>

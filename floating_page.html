@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* BASE_CSS */
+/* CUSTOM_CSS */
+</style>
+<style id="application-scrolling">#results{scrollbar-width:none!important}#results::-webkit-scrollbar{display:none!important}</style>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>/* ENTRY_FONT_JS */</script>
+</head>
+<body>
+<main class="panel">
+  <header class="toolbar" id="toolbar">
+    <span class="brand">浮き辞典</span>
+    <button id="reading-stats-button" title="Reading statistics" aria-label="Reading statistics"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 19V12M10 19V5M16 19V9M22 19H2"/></svg></button>
+    <button id="translation-button" type="button" title="Translation" aria-label="Translation"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h12M9 3v2M5 5c1 5 4 8 8 10M13 5c-1 5-4 9-10 12M14 21l4-10 4 10M15.5 17h5"/></svg></button>
+    <div class="toolbar-right">
+    <div class="toolbar-tools" id="toolbar-tools" >
+    <div class="toolbar-tool-items" id="toolbar-tool-items">
+    <button id="pin" type="button" title="Toggle keep above other windows" aria-label="Toggle keep above other windows" aria-pressed="false"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6M10 3v6l-3 3v2h10v-2l-3-3V3M12 14v7"/></svg></button>
+    <button id="pane-stay-visible" type="button" title="Keep dictionary visible" aria-label="Keep dictionary visible" aria-pressed="false"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="15" height="11" rx="2"/><circle cx="12" cy="12.5" r="2.5"/><path d="M5 11h2m-2 3h2M5 18v2m9-2v2M6 7V5h4v2"/><path class="projector-beam" d="m20 9 2-2m-2 5.5h2M20 16l2 2"/></svg></button>
+    <button id="navbar-hide" type="button" title="Fade navbar when pointer leaves" aria-label="Fade navbar when pointer leaves" aria-pressed="false"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path class="navbar-mode" d="M3 10h18M8 7h8"/></svg></button>
+    <button id="rotate-panes" type="button" title="Switch to top-bottom panes" aria-label="Rotate pane layout">⟳</button>
+    <button id="swap" title="Swap sides">⇄</button>
+    <button id="avatar-position" type="button" title="Move avatar to top" aria-label="Toggle avatar top or bottom position" aria-pressed="false"><span class="rotate-icon">⇄</span></button>
+    <button id="lookup-split" type="button" title="Add a column" aria-label="Add a search column"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg></button>
+    <button id="lookup-add-row" type="button" title="Add a row" aria-label="Add a search row"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18"/></svg></button>
+    <button id="lookup-close-extras" type="button" title="Close extra searches" aria-label="Close extra searches" hidden><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16m4-11 5 6m0-6-5 6"/></svg></button>
+    </div>
+    </div>
+    <span class="toolbar-divider" aria-hidden="true"></span>
+    <button id="dictionaries" type="button" title="Dictionary settings" aria-label="Dictionary settings"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5c-3-2-6-2-10-1v15c4-1 7-1 10 1 3-2 6-2 10-1V4c-4-1-7-1-10 1Z"/><path d="M12 5v15"/></svg></button>
+    <button id="settings" title="Appearance and dictionaries">⚙</button>
+    </div>
+  </header>
+  <div id="navbar-reveal" aria-hidden="true"></div>
+  <div id="lookup-area">
+  <section class="lookup-pane" id="primary-lookup">
+  <div class="searchbar">
+    <span class="search-icon">⌕</span>
+    <input id="query" type="text" placeholder="" value="INITIAL_QUERY" autocomplete="off" autofocus>
+    <button id="clear-query" type="button" title="Clear search" aria-label="Clear search">×</button>
+  </div>
+  <div id="results" class="results"></div>
+  </section>
+  <div id="lookup-divider" role="separator" tabindex="0" aria-label="Resize lookup panes" aria-orientation="vertical" hidden></div>
+  <section class="lookup-pane" id="secondary-lookup" hidden>
+    <div class="searchbar"><span class="search-icon">⌕</span><input id="secondary-query" type="text" aria-label="Right lookup" autocomplete="off"><button id="secondary-clear" type="button" aria-label="Clear right lookup">×</button></div>
+    <div id="secondary-results" class="results"></div>
+  </section>
+  </div>
+  <button id="back-to-top" type="button" title="Back to top" aria-label="Back to top"
+    style="display:none!important;position:absolute!important;right:23px!important;bottom:15px!important;z-index:100!important;width:42px!important;height:42px!important;border:1px solid rgba(224,196,238,.5)!important;border-radius:13px!important;background:rgba(41,35,54,.94)!important;color:#fff!important;box-shadow:0 8px 24px rgba(0,0,0,.3)!important;cursor:pointer!important">↑</button>
+</main>
+<script>
+let backgroundGeneration = 0;
+function finishBackgroundFade() {
+  document.querySelectorAll('.pane-background-previous').forEach(image => {
+    image.getAnimations().forEach(animation => animation.cancel());
+    image.remove();
+  });
+  const current = document.getElementById('pane-background');
+  if (current) {
+    current.getAnimations().forEach(animation => animation.cancel());
+    current.style.opacity = '1';
+  }
+}
+function setPaneBackground(url) {
+  const pane = document.querySelector('.panel');
+  const current = document.getElementById('pane-background');
+  if (current?.dataset.source === url) return;
+  const generation = ++backgroundGeneration;
+  finishBackgroundFade();
+  if (!url) {
+    if (current) {
+      current.removeAttribute('src');
+      current.hidden = true;
+      current.dataset.source = '';
+    }
+    return;
+  }
+  // Decode the next file before touching the displayed image; retain at most two layers.
+  const incoming = document.createElement('img');
+  incoming.alt = '';
+  incoming.setAttribute('aria-hidden', 'true');
+  incoming.dataset.source = url;
+  incoming.className = 'pane-background-layer';
+  incoming.style.opacity = '0';
+  incoming.onload = () => {
+    if (generation !== backgroundGeneration) { incoming.remove(); return; }
+    const previous = current && !current.hidden && current.hasAttribute('src') ? current : null;
+    if (current) {
+      current.removeAttribute('id');
+      current.classList.add('pane-background-previous');
+    }
+    incoming.id = 'pane-background';
+    if (current) current.after(incoming); else pane.prepend(incoming);
+    const duration = Math.min(motion.background_fade_ms || 600, (motion.background_seconds || 300) * 1000);
+    if (previous && motion.background_crossfade) {
+      const options = {duration, fill: 'forwards', easing: 'ease-in-out'};
+      previous.animate([{opacity: 1}, {opacity: 0}], options);
+      const fade = incoming.animate([{opacity: 0}, {opacity: 1}], options);
+      fade.finished.then(() => {
+        if (generation === backgroundGeneration) finishBackgroundFade();
+      }).catch(() => {});
+    } else {
+      incoming.style.opacity = '1';
+      if (current) current.remove();
+    }
+  };
+  incoming.onerror = () => incoming.remove();
+  incoming.src = url;
+}
+/* CONTRAST_JS */
+function applyPanelColor(color) {
+  const rgb=panelColorRGB(color).split(',').map(Number);
+  const brightness=values=>(values[0]*.2126+values[1]*.7152+values[2]*.0722)/255;
+  const mix=(values,target,amount)=>values.map(value=>Math.round(value*(1-amount)+target*amount));
+  const base=mix(rgb,brightness(rgb)>.5?0:255,.24);
+  const light=brightness(base)>.48;
+  const root=document.documentElement.style;
+  applyTextContrast(color);
+  root.setProperty('--panel-color-rgb',rgb.join(','));
+  root.setProperty('--settings-button-bg','rgb('+base.join(',')+')');
+  root.setProperty('--settings-button-hover','rgb('+mix(base,light?0:255,.13).join(',')+')');
+  root.setProperty('--settings-button-text',light?'#101719':'#f3f5f7');
+  root.setProperty('--settings-button-border','rgb('+mix(base,light?0:255,.27).join(',')+')');
+}
+function panelColorRGB(color) {const hex=/^#[0-9a-f]{6}$/i.test(color||'')?color:'#000000';return [1,3,5].map(index=>parseInt(hex.slice(index,index+2),16)).join(',');}
+function connectColorPicker(input,scope){
+  input.addEventListener('click',event=>{event.preventDefault();if(app){beginColorPreview();app.choose_color(scope);}});
+}
+function applyColorPreview(scope,color){
+  if(scope==='dictionary'){
+    motion.panel_color=color;applyPanelColor(color);
+    const input=document.querySelector('[data-setting=panel_color] input');if(input)input.value=color;
+  } else if(scope==='avatar'){
+    motion.avatar_background_color=color;
+    const input=document.querySelector('[data-setting=avatar_background_color] input');if(input)input.value=color||'#000000';
+  } else {
+    scannerConfig.background_color=color;
+    const input=document.getElementById('popup-background_color');if(input)input.value=color;
+  }
+}
+function applyPreferences(values) {
+  Object.assign(motion, values);
+  applyBackgroundAppearance();
+  applyLookupLayout();applyEntryFonts(values);
+  for(const key of ['blur_px','avatar_fill_pane','avatar_auto_mirror_sides','avatar_auto_mirror_vertical','background_auto_mirror_sides','background_auto_mirror_vertical']){
+    const input=document.querySelector('[data-setting="'+key+'"] input');if(input)input.checked=!!motion[key];
+  }
+  updatePaneFadeToggle();
+  if(!motion.auto_fade)showPanel();
+  if(!motion.background_crossfade)finishBackgroundFade();
+  document.querySelectorAll('[data-background-fade]').forEach(input=>input.disabled=!motion.background_crossfade);
+  document.querySelectorAll('[data-folder-control]').forEach(control => { control.disabled = !(control.dataset.folderControl === 'background' ? values.background_folder : values.avatar_folder); });
+  const removeAvatar=document.getElementById('remove-avatar-folder');if(removeAvatar)removeAvatar.hidden=!values.avatar_folder;
+  for(const [id,key] of [['edit-avatar-image','avatar'],['edit-background-image','background_image']]){
+    const button=document.getElementById(id);if(button)button.disabled=!motion[key];
+  }
+  applyPanelColor(motion.panel_color);
+  const folderStatus=document.getElementById('avatar-folder-status');
+  if(folderStatus) { folderStatus.textContent=values.avatar_folder || ''; folderStatus.hidden=!values.avatar_folder; }
+  for (const [name, value] of Object.entries({
+    'panel-darkness': motion.panel_darkness / 100,
+    'blur-radius': motion.blur_px + 'px',
+    'fade-in-duration': motion.fade_in_ms + 'ms',
+    'fade-out-duration': motion.fade_out_ms + 'ms'
+  })) document.documentElement.style.setProperty('--' + name, value);
+  document.querySelectorAll('[data-avatar-fade]').forEach(control=>control.disabled=!values.avatar_crossfade);
+  updateAvatarPosition(motion.avatar_vertical_position === 'top');
+}
+function applyBackgroundAppearance(){
+  updateBackgroundVisibility();
+  document.documentElement.style.setProperty('--background-scale-x',motion.background_mirror_x?-1:1);
+  document.documentElement.style.setProperty('--background-scale-y',motion.background_mirror_y?-1:1);
+  document.documentElement.style.setProperty('--dictionary-image-blur',(motion.dictionary_image_blur||0)+'px');
+  document.documentElement.style.setProperty('--dictionary-image-opacity',(motion.dictionary_image_opacity??100)/100);
+  const radius=(motion.dictionary_corner_radius??23)+'px',mode=motion.dictionary_corner_mode||'all';
+  panel.style.borderRadius=(mode==='bottom'?'0px 0px '+radius+' '+radius:mode==='top'?radius+' '+radius+' 0px 0px':radius);
+}
+let settingsExpanded = false;
+function paneOrderChanged(values) {
+  Object.assign(motion, values);
+  updatePaneOrientation(values.split_orientation === 'vertical');
+  document.getElementById('swap').title = motion.split_orientation === 'vertical' ? 'Move avatar image left or right' : 'Flip panes left or right';
+  if (document.getElementById('inline-settings')) {
+    const scroll = document.getElementById('inline-settings').scrollTop;
+    document.getElementById('inline-settings').remove();
+    showSettings(values);
+    document.getElementById('inline-settings').scrollTop = scroll;
+  }
+}
+const paneTransitions = new WeakMap();
+function animatePaneContent(node=document.getElementById('inline-settings')||document.getElementById('results')) {
+  if(!node||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  paneTransitions.get(node)?.cancel();
+  paneTransitions.set(node,node.animate([{opacity:.55,transform:'translateY(3px)'},{opacity:1,transform:'translateY(0)'}],{duration:90,easing:'ease-out'}));
+}
+function closeSettings() {
+  const hadSettings=!!document.getElementById('inline-settings');
+  if(typeof cancelScanHotkeyCapture === 'function')cancelScanHotkeyCapture();
+  document.getElementById('inline-settings')?.remove();
+  panel.classList.remove('settings-open');
+  if(hadSettings)animatePaneContent(document.getElementById('results'));
+  resumeFade();
+}
+function updateBackgroundVisibility(){
+  const area=document.getElementById('inline-settings');
+  const pane=!area?'dictionary':area.querySelector('#reading-stats')?'stats':area.dataset.page==='translation'?'translation':area.dataset.page==='popup'?'popup':['dictionaries','collapse-defaults'].includes(area.dataset.page)?'dictionary':'settings';
+  panel.classList.toggle('background-image-disabled',motion['background_show_'+pane]===false);
+  panel.dataset.backgroundPane=pane;
+}
+function showSettings(values) {
+  clearTimeout(timer);
+  if (document.getElementById('inline-settings')) return;
+  showPanel();
+  const area = document.createElement('div');
+  area.id = 'inline-settings';
+  area.setAttribute('aria-label', 'Dictionary settings');
+  area.className = 'settings-page';
+  panel.classList.add('settings-open');
+  const close = dictionaryBackButton();
+  area.append(close);
+  const heading = document.createElement('h2'); heading.textContent = 'Settings'; area.append(heading);
+  const fields = [
+    ['pane_order','Pane order','button'],
+    ['avatar_vertical_position','Avatar position','select'],
+    ['avatar_fill_pane','Fill avatar pane (keep proportions)','checkbox'],
+    ['avatar_auto_mirror_sides','Auto-mirror avatar when swapping sides (⇄)','checkbox'],
+    ['avatar_auto_mirror_vertical','Auto-mirror avatar when moving top/bottom (⇅)','checkbox'],
+    ['background_auto_mirror_sides','Auto-mirror background when swapping sides (⇄)','checkbox'],
+    ['background_auto_mirror_vertical','Auto-mirror background when moving top/bottom (⇅)','checkbox'],
+    ['blur_px','Dictionary pane blur','checkbox'],
+    ['avatar_blur','Avatar pane blur','checkbox'],
+    ['dictionary_image_blur','Dictionary background image blur','range',0,40],
+    ['dictionary_image_opacity','Dictionary background image opacity','range',0,100],
+    ['avatar_image_blur','Avatar image blur','range',0,40],
+    ['text_color_mode','Text color','select'],
+    ['panel_color','Dictionary background color','color'],
+    ['avatar_background_color','Avatar background color','color'],
+    ['panel_darkness','Dictionary background color opacity','range',0,100],
+    ['avatar_background_opacity','Avatar background opacity','range',0,100],
+    ['auto_fade','Fade dictionary when idle','checkbox'],
+    ['fade_avatar','Fade avatar with dictionary','checkbox'],
+    ['fade_delay_ms','Idle before fade (ms)','number',100,30000],
+    ['fade_in_ms','Fade in duration (ms)','number',0,10000],
+    ['fade_out_ms','Fade out duration (ms)','number',0,10000]
+  ];
+  const fontHeading=document.createElement('h3');fontHeading.textContent='Entry text size';area.append(fontHeading);
+  const fontRow=document.createElement('label');fontRow.className='settings-row settings-font-family';fontRow.dataset.setting='font_family';
+  const fontLabel=document.createElement('span');fontLabel.textContent='Font';
+  const fontSelect=document.createElement('select');fontSelect.setAttribute('aria-label','Entry font');
+  const defaultFont=document.createElement('option');defaultFont.value='';defaultFont.textContent='Default';fontSelect.append(defaultFont);
+  for(const group of motion.font_choices||[]){
+    const optgroup=document.createElement('optgroup');optgroup.label=group.label;
+    for(const family of group.families){const option=document.createElement('option');option.value=family;option.textContent=family;optgroup.append(option);}
+    fontSelect.append(optgroup);
+  }
+  if(values.font_family&&![...fontSelect.options].some(option=>option.value===values.font_family)){
+    const missing=document.createElement('option');missing.value=values.font_family;missing.textContent=values.font_family+' (unavailable)';missing.disabled=true;fontSelect.append(missing);
+  }
+  fontSelect.value=values.font_family||'';
+  fontSelect.onchange=()=>{motion.font_family=fontSelect.value;applyEntryFonts(motion);app.preference('font_family',JSON.stringify(fontSelect.value));};
+  fontRow.append(fontLabel,fontSelect);area.append(fontRow);
+  for(const [key,title] of [['font_headword','Headword'],['font_reading','Reading'],['font_definition','Definition'],['font_example','Example sentence'],['font_frequency','Frequency'],['font_pitch','Pitch accent']]){
+    const row=document.createElement('label');row.className='settings-row';row.dataset.setting=key;
+    const text=document.createElement('span');text.textContent=title+' (px)';
+    const input=document.createElement('input');input.type='number';input.min=8;input.max=72;input.value=values[key];
+    input.oninput=()=>{if(input.value&&input.checkValidity())app.preference(key,JSON.stringify(Number(input.value)));};row.append(text,input);area.append(row);
+  }
+  const image = document.createElement('button'); image.textContent = 'Choose avatar image…';
+  image.onclick = () => app.choose_image();
+  const sourceButtons=document.createElement('div'); sourceButtons.className='settings-source-buttons';
+  const folder=document.createElement('button'); folder.textContent='Choose folder…'; folder.onclick=()=>app.choose_folder();
+  const removeAvatar=document.createElement('button');removeAvatar.id='remove-avatar-folder';removeAvatar.textContent='Remove avatar folder';removeAvatar.hidden=!values.avatar_folder;removeAvatar.onclick=()=>app.preference('avatar_folder',JSON.stringify(''));
+  const avatarToggle=document.createElement('button');avatarToggle.id='avatar-toggle';avatarToggle.textContent='Dict. Only';avatarToggle.setAttribute('aria-pressed',String(values.avatar_enabled===false));
+  avatarToggle.onclick=()=>{motion.avatar_enabled=motion.avatar_enabled===false;values.avatar_enabled=motion.avatar_enabled;avatarToggle.classList.toggle('active',!motion.avatar_enabled);app.preference('avatar_enabled',JSON.stringify(motion.avatar_enabled));};
+  const imageToggle=document.createElement('button');imageToggle.id='avatar-image-toggle';imageToggle.textContent=values.avatar_hidden?'Show avatar':'Hide avatar';imageToggle.setAttribute('aria-pressed',String(!values.avatar_hidden));
+  imageToggle.onclick=()=>{motion.avatar_hidden=!motion.avatar_hidden;values.avatar_hidden=motion.avatar_hidden;imageToggle.textContent=motion.avatar_hidden?'Show avatar':'Hide avatar';app.preference('avatar_hidden',JSON.stringify(motion.avatar_hidden));};
+  avatarToggle.classList.toggle('active',values.avatar_enabled===false);
+  sourceButtons.append(image,folder,removeAvatar,avatarToggle,imageToggle); area.append(sourceButtons);
+  const editAvatar=document.createElement('button');editAvatar.type='button';editAvatar.id='edit-avatar-image';editAvatar.textContent='Crop / resize…';editAvatar.disabled=!values.avatar;editAvatar.onclick=()=>app.edit_current_image('avatar');sourceButtons.append(editAvatar);
+  function cornerControls(parent,kind){
+    const controls=document.createElement('div');controls.className='pane-corner-controls';
+    const caption=document.createElement('label');caption.textContent='Radius';
+    const input=document.createElement('input');input.type='number';input.min=0;input.max=120;input.value=values[kind+'_corner_radius']??23;input.setAttribute('aria-label',kind+' corner radius');
+    input.oninput=()=>{if(input.value!==''&&input.checkValidity())app.preference(kind+'_corner_radius',JSON.stringify(Number(input.value)));};caption.append(input);controls.append(caption);
+    const checks=[];
+    for(const [mode,title] of [['top','Top only'],['bottom','Bottom only']]){
+      const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.checked=values[kind+'_corner_mode']===mode;check.setAttribute('aria-label',kind+' round '+title.toLowerCase());
+      check.onchange=()=>{const next=check.checked?mode:'all';for(const [otherMode,other] of checks)other.checked=otherMode===next;values[kind+'_corner_mode']=next;app.preference(kind+'_corner_mode',JSON.stringify(next));};
+      checks.push([mode,check]);label.append(check,document.createTextNode(title));controls.append(label);
+    }
+    parent.append(controls);
+  }
+  cornerControls(sourceButtons,'avatar');
+  const status=document.createElement('p'); status.id='avatar-folder-status'; status.className='settings-intro';
+  status.textContent=values.avatar_folder || ''; status.hidden=!values.avatar_folder; area.append(status);
+  const stacked = values.split_orientation === 'vertical';
+  if (stacked) {
+    const position = fields.find(field => field[0] === 'avatar_vertical_position');
+    position[0] = 'avatar_horizontal_position';
+    values.avatar_horizontal_position = values.avatar_right ? 'right' : 'left';
+  }
+  fields.unshift(['avatar_seconds','Avatar interval (sec)','number',1,86400], ['background_seconds','Background interval (sec)','number',1,86400], ['avatar_order','Avatar folder order','select'], ['background_order','Background folder order','select'], ['avatar_crossfade','Avatar crossfade','checkbox'], ['avatar_fade_ms','Avatar fade (ms)','number',50,10000], ['background_crossfade','Background crossfade','checkbox'], ['background_fade_ms','Background fade (ms)','number',50,10000]);
+  for (const [key,title,type,min,max] of fields) {
+    const sectionTitles = {pane_order:'Avatar & layout', blur_px:'Background & appearance', auto_fade:'Motion & visibility'};
+    if(sectionTitles[key]) { const section=document.createElement('h3'); section.textContent=sectionTitles[key]; area.append(section); }
+    const subheading={blur_px:'Pane blur',dictionary_image_blur:'Image blur',text_color_mode:'Text',panel_color:'Colors',panel_darkness:'Opacity'}[key];
+    if(subheading){const heading=document.createElement('h4');heading.className='settings-subheading';heading.textContent=subheading;area.append(heading);}
+    const label = document.createElement('label');
+    label.className = 'settings-row settings-' + type;
+    label.dataset.setting = key;
+    const caption = document.createElement('span'); caption.className='settings-caption'; caption.textContent = title; label.append(caption);
+    if (type === 'button') {
+      const button=document.createElement('button');
+      const position=values.split_orientation === 'vertical' ? (values.avatar_top ? 'Top' : 'Bottom') : (values.avatar_right ? 'Right' : 'Left');
+      button.textContent=position + ' →'; button.title='Cycle Right → Bottom → Left → Top';
+      button.onclick=()=>app.rotate_panes(updatePaneOrientation); label.append(button); area.append(label); continue;
+    }
+    const input = document.createElement(type === 'select' ? 'select' : 'input');
+    if(type === 'select') for (const value of (key==='text_color_mode' ? ['automatic','black','white'] : ['avatar_order','background_order'].includes(key) ? ['default','reverse','random'] : key === 'avatar_horizontal_position' ? ['left','right'] : ['bottom','top'])) {
+      const option = document.createElement('option'); option.value=value; option.textContent=value.charAt(0).toUpperCase()+value.slice(1); input.append(option);
+    } else input.type=type;
+    if(min !== undefined) { input.min=min; input.max=max; }
+    input.value=type==='color'?(values[key]||'#000000'):values[key]; input.checked=Boolean(values[key]);
+    if(type==='color')connectColorPicker(input,key==='avatar_background_color'?'avatar':'dictionary');
+    if(key === 'avatar_seconds' || key === 'avatar_order') { input.dataset.folderControl='avatar'; input.disabled=!values.avatar_folder; }
+    if(key === 'background_seconds' || key === 'background_order') { input.dataset.folderControl='background'; input.disabled=!values.background_folder; }
+    if(key==='avatar_fade_ms'){input.dataset.avatarFade='';input.disabled=!values.avatar_crossfade;input.step=50;}
+    if(key==='background_fade_ms'){input.dataset.backgroundFade='';input.disabled=!values.background_crossfade;input.step=50;}
+    const output=document.createElement('span');
+    const unit=key.endsWith('_image_blur')?'px':'%';
+    if(type === 'range') output.textContent=values[key] + unit;
+    input.oninput=() => {
+      const value=type === 'checkbox' ? (key === 'blur_px' ? Number(input.checked) : input.checked) : (type === 'select' || type === 'color') ? input.value : Number(input.value);
+      if(type === 'number' && (!input.value || !input.checkValidity())) return;
+      if(type === 'range') output.textContent=value + unit;
+      if(key==='text_color_mode'){motion.text_color_mode=value;applyTextContrast(motion.panel_color);}
+      app.preference(key === 'avatar_horizontal_position' ? 'avatar_right' : key,
+        JSON.stringify(key === 'avatar_horizontal_position' ? value === 'right' : value));
+    };
+    if(key==='avatar_background_color'||key==='panel_color'){
+      const controls=document.createElement('div');controls.className='settings-color-controls';
+      const clear=document.createElement('button');clear.type='button';clear.className='settings-clear-color';clear.textContent='×';clear.title=key==='panel_color'?'Make dictionary background transparent':'Make avatar background transparent';clear.setAttribute('aria-label',clear.title);clear.onclick=()=>{
+        if(key==='panel_color'){
+          values.panel_darkness=0;
+          const row=area.querySelector('[data-setting=panel_darkness]');
+          if(row){row.querySelector('input').value=0;row.querySelector('input').nextElementSibling.textContent='0%';}
+          app.preference('panel_darkness',JSON.stringify(0));
+        }else{values.avatar_background_color='';app.preference('avatar_background_color',JSON.stringify(''));}
+      };controls.append(clear,input);label.append(controls);
+    }else label.append(input,output);
+    area.append(label);
+  }
+  const controls = document.createElement('div');
+  controls.id = 'settings-controls';
+  const movementKeys = new Set(['avatar_seconds', 'avatar_crossfade', 'avatar_fade_ms', 'background_seconds', 'avatar_order', 'background_order', 'background_crossfade', 'background_fade_ms', 'pane_order',
+    'avatar_vertical_position', 'avatar_horizontal_position','avatar_fill_pane','avatar_auto_mirror_sides','avatar_auto_mirror_vertical','background_auto_mirror_sides','background_auto_mirror_vertical']);
+  for (const row of [...area.querySelectorAll('.settings-row')]) {
+    if (movementKeys.has(row.dataset.setting)) controls.append(row);
+  }
+  for (const heading of [...area.querySelectorAll('h3')]) {
+    if (heading.textContent === 'Avatar & layout') heading.remove();
+  }
+  const imageSection=makeSettingsSection('Image & pane options','main-images');
+  imageSection.id='image-pane-options';controls.hidden=false;imageSection.append(controls);
+  const sourceStatus=area.querySelector('#avatar-folder-status');
+  const backgroundButtons=document.createElement('div'); backgroundButtons.className='settings-source-buttons';
+  const backgroundImage=document.createElement('button'); backgroundImage.textContent='Choose background image…';
+  backgroundImage.onclick=()=>app.choose_background(false);
+  const backgroundFolder=document.createElement('button'); backgroundFolder.textContent='Choose background folder…';
+  backgroundFolder.onclick=()=>app.choose_background(true);
+  backgroundFolder.title='Rotate supported images and GIFs at the background interval';
+  const removeBackground=document.createElement('button');removeBackground.textContent='Remove background folder';
+  removeBackground.onclick=()=>app.remove_background();
+  backgroundButtons.append(backgroundImage,backgroundFolder,removeBackground);
+  const editBackground=document.createElement('button');editBackground.type='button';editBackground.id='edit-background-image';editBackground.textContent='Crop / resize…';editBackground.disabled=!values.background_image;editBackground.onclick=()=>app.edit_current_image('background');backgroundButtons.append(editBackground);
+  cornerControls(backgroundButtons,'dictionary');
+  sourceStatus.after(backgroundButtons);
+  fontHeading.before(sourceButtons,status,backgroundButtons,imageSection);
+  collapseSettingsSections(area,'main');
+  const avatarSection=makeSettingsSection('Avatar','main-avatar');avatarSection.id='avatar-settings';
+  const backgroundSection=makeSettingsSection('Dictionary background','main-dictionary-background');backgroundSection.id='background-settings';
+  avatarSection.append(sourceButtons,status);backgroundSection.append(backgroundButtons);
+  const visibility=document.createElement('div');visibility.className='background-pane-options';
+  const visibilityTitle=document.createElement('span');visibilityTitle.textContent='Show image in';visibility.append(visibilityTitle);
+  for(const [pane,title] of [['dictionary','Dictionary'],['popup','Popup dictionary'],['stats','Statistics'],['translation','Translation'],['settings','Settings']]){
+    const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.dataset.backgroundPane=pane;input.checked=values['background_show_'+pane]!==false;input.onchange=()=>app.preference('background_show_'+pane,JSON.stringify(input.checked));label.append(input,document.createTextNode(title));visibility.append(label);
+  }backgroundSection.append(visibility);
+  for(const [section,keys] of [[avatarSection,['avatar_fill_pane','avatar_image_blur','avatar_blur','avatar_background_color','avatar_background_opacity','avatar_auto_mirror_sides','avatar_auto_mirror_vertical','avatar_seconds','avatar_order','avatar_crossfade','avatar_fade_ms']],
+    [backgroundSection,['blur_px','dictionary_image_blur','dictionary_image_opacity','text_color_mode','panel_color','panel_darkness','background_auto_mirror_sides','background_auto_mirror_vertical','background_seconds','background_order','background_crossfade','background_fade_ms']]]){
+    for(const key of keys){const row=area.querySelector('[data-setting="'+key+'"]');if(row)section.append(row);}
+  }
+  area.querySelector('[data-section="main-background-appearance"]')?.remove();
+  const firstSection=area.querySelector('details');firstSection.before(avatarSection,backgroundSection);
+  panel.append(area);
+  animatePaneContent(area);
+}
+let app = null;
+let timer = null;
+let fadeTimer = null;
+let imageHovered = false;
+let panelHovered = false;
+let nativePanelHovered = false;
+let fadePaused = false;
+let colorPreviewOpen=false,colorPreviewWasPaused=false;
+let windowActive = true;
+const motion = INITIAL_SETTINGS;
+setPaneBackground(motion.background_url);
+const panel = document.querySelector('.panel');
+new MutationObserver(updateBackgroundVisibility).observe(panel,{childList:true,subtree:true,attributes:true,attributeFilter:['data-page']});
+
+const results = document.getElementById('results');
+const backToTop = document.getElementById('back-to-top');
+const pin = document.getElementById('pin');
+const tools=document.getElementById('toolbar-tools');
+const navbar=document.getElementById('toolbar');
+let navbarFadeTimer=null,navbarHovered=false;
+let navbarProgress=1,navbarTarget=1,navbarFrame=null,navbarLastFrame=0;
+const navbarHeight=navbar.getBoundingClientRect().height||55;
+function searchIconRevealStart() {
+  const icon=document.querySelector('#primary-lookup .search-icon');
+  const bounds=icon.getBoundingClientRect(),font=getComputedStyle(icon);
+  const context=document.createElement('canvas').getContext('2d');
+  context.font=font.font;
+  const metrics=context.measureText(icon.textContent);
+  const ascent=metrics.fontBoundingBoxAscent??parseFloat(font.fontSize)*.8;
+  const descent=metrics.fontBoundingBoxDescent??parseFloat(font.fontSize)*.2;
+  const inkTop=bounds.top+(bounds.height-ascent-descent)/2+ascent-metrics.actualBoundingBoxAscent;
+  return Math.max(1,inkTop-panel.getBoundingClientRect().top-navbarHeight+2);
+}
+const navbarRevealStart=searchIconRevealStart();
+const navbarRevealEnd=Math.min(3,navbarRevealStart/2);
+panel.style.setProperty('--navbar-height',navbarHeight+'px');
+function paintNavbar() {
+  panel.style.setProperty('--navbar-progress',String(navbarProgress));
+  navbar.style.pointerEvents=navbarProgress>.98?'auto':'none';
+}
+function animateNavbar(timestamp) {
+  const elapsed=navbarLastFrame?Math.min(50,timestamp-navbarLastFrame):16;
+  navbarLastFrame=timestamp;
+  const response=navbarTarget>navbarProgress?40:90;
+  navbarProgress+=(navbarTarget-navbarProgress)*(1-Math.exp(-elapsed/response));
+  if(Math.abs(navbarTarget-navbarProgress)<.002)navbarProgress=navbarTarget;
+  paintNavbar();
+  if(navbarProgress!==navbarTarget)navbarFrame=requestAnimationFrame(animateNavbar);
+  else {navbarFrame=null;navbarLastFrame=0;}
+}
+function moveNavbar(progress,immediate=false) {
+  navbarTarget=Math.max(0,Math.min(1,progress));
+  panel.classList.toggle('navbar-hidden',navbarTarget===0);
+  if(immediate||matchMedia('(prefers-reduced-motion: reduce)').matches){
+    if(navbarFrame!==null)cancelAnimationFrame(navbarFrame);
+    navbarFrame=null;navbarLastFrame=0;navbarProgress=navbarTarget;paintNavbar();
+  } else if(navbarFrame===null)navbarFrame=requestAnimationFrame(animateNavbar);
+}
+function revealNavbar() {
+  clearTimeout(navbarFadeTimer);navbarFadeTimer=null;
+  moveNavbar(1);
+}
+function hideNavbar() {
+  if(!motion.navbar_auto_hide||navbarHovered||navbarTarget===0||navbarFadeTimer!==null)return;
+  navbarFadeTimer=setTimeout(()=>{
+    navbarFadeTimer=null;
+    if(motion.navbar_auto_hide&&!navbarHovered)moveNavbar(0);
+  },800);
+}
+function enterNavbar(){if(navbarProgress>.98){navbarHovered=true;revealNavbar();}}
+function leaveNavbar(event){
+  const y=event?event.clientY-panel.getBoundingClientRect().top:-1;
+  const x=event?event.clientX:-1,bounds=panel.getBoundingClientRect();
+  navbarHovered=navbarTarget===1&&y>=0&&y<=navbarHeight&&x>=bounds.left&&x<=bounds.right;
+  if(navbarHovered){clearTimeout(navbarFadeTimer);navbarFadeTimer=null;}
+  else hideNavbar();
+}
+function trackNavbarPointer(event) {
+  if(event.pointerType==='touch'||!motion.navbar_auto_hide||panel.classList.contains('settings-open'))return;
+  const y=event.clientY-panel.getBoundingClientRect().top;
+  // Fixed coordinates avoid feedback as the search field glides underneath.
+  const start=navbarRevealStart,end=navbarRevealEnd;
+  // Once revealed, use the full toolbar area, not the narrow reveal strip.
+  // Pointer-entry events can be missed while the toolbar moves under the mouse.
+  if(navbarTarget===1){
+    navbarHovered=y>=0&&y<=navbarHeight;
+    if(navbarHovered){
+      clearTimeout(navbarFadeTimer);navbarFadeTimer=null;
+      if(y<=end&&navbarProgress<1)moveNavbar(1,true);
+    }
+    else hideNavbar();
+    return;
+  }
+  if(y>=0&&y<=start){navbarHovered=true;revealNavbar();}
+  else {navbarHovered=false;hideNavbar();}
+}
+panel.addEventListener('pointermove',trackNavbarPointer);
+navbar.addEventListener('pointerenter',enterNavbar);
+navbar.addEventListener('pointerleave',leaveNavbar);
+panel.addEventListener('pointerleave',()=>leaveNavbar());
+navbar.addEventListener('focusin',revealNavbar);
+function applyLookupLayout() {
+  const imageToggle=document.getElementById('avatar-image-toggle');if(imageToggle){imageToggle.textContent=motion.avatar_hidden?'Show avatar':'Hide avatar';imageToggle.setAttribute('aria-pressed',String(!motion.avatar_hidden));}
+  const avatarButton=document.getElementById('avatar-toggle');if(avatarButton){avatarButton.setAttribute('aria-pressed',String(motion.avatar_enabled===false));avatarButton.textContent='Dict. Only';avatarButton.classList.toggle('active',motion.avatar_enabled===false);}
+  applyLookupGrid();
+  const fadeButton=document.getElementById('navbar-hide');fadeButton.classList.remove('active');fadeButton.setAttribute('aria-pressed',String(!!motion.navbar_auto_hide));
+  const navbarButton=document.getElementById('navbar-hide');navbarButton.title=motion.navbar_auto_hide?'Keep navbar visible':'Fade navbar when pointer leaves';navbarButton.setAttribute('aria-label',navbarButton.title);
+  if(!motion.navbar_auto_hide)revealNavbar();
+}
+document.getElementById('navbar-hide').onclick=()=>{
+  motion.navbar_auto_hide=!motion.navbar_auto_hide;applyLookupLayout();
+  if(motion.navbar_auto_hide)hideNavbar();
+  if(app)app.preference('navbar_auto_hide',JSON.stringify(motion.navbar_auto_hide));
+};
+
+
+const rotatePanes = document.getElementById('rotate-panes');
+const avatarPosition = document.getElementById('avatar-position');
+function updateKeepAbove(enabled) {
+  motion.keep_above = enabled;
+  pin.classList.remove('active');pin.dataset.pinned=String(enabled);
+  pin.setAttribute('aria-pressed', String(enabled));
+  pin.title = enabled ? 'Stop keeping above other windows' : 'Keep above other windows';
+}
+updateKeepAbove(motion.keep_above);
+function updateAvatarPosition(isTop) {
+  if (motion.split_orientation === 'vertical') {
+    motion.avatar_top = isTop;
+    avatarPosition.title = isTop ? 'Move avatar pane to bottom' : 'Move avatar pane to top';
+    avatarPosition.setAttribute('aria-label', 'Flip panes up or down');
+  } else {
+    motion.avatar_vertical_position = isTop ? 'top' : 'bottom';
+    avatarPosition.title = isTop ? 'Move avatar image to bottom' : 'Move avatar image to top';
+    avatarPosition.setAttribute('aria-label', 'Move avatar image up or down');
+  }
+  avatarPosition.setAttribute('aria-pressed', String(isTop));
+}
+function updatePaneOrientation(isVertical) {
+  motion.split_orientation = isVertical ? 'vertical' : 'horizontal';
+  document.getElementById('swap').title = motion.split_orientation === 'vertical' ? 'Move avatar image left or right' : 'Flip panes left or right';
+  rotatePanes.title = 'Rotate clockwise: Right → Bottom → Left → Top';
+
+  updateAvatarPosition(isVertical ? motion.avatar_top : motion.avatar_vertical_position === 'top');
+}
+updatePaneOrientation(motion.split_orientation === 'vertical');
+panel.style.setProperty('position', 'relative', 'important');
+document.documentElement.style.setProperty('--panel-opacity', motion.panel_opacity / 100);
+document.documentElement.style.setProperty('--panel-darkness', motion.panel_darkness / 100);
+applyPanelColor(motion.panel_color);
+applyBackgroundAppearance();
+document.documentElement.style.setProperty('--blur-radius', motion.blur_px + 'px');
+document.documentElement.style.setProperty('--fade-in-duration', motion.fade_in_ms + 'ms');
+document.documentElement.style.setProperty('--fade-out-duration', motion.fade_out_ms + 'ms');
+if (motion.panel_opacity === 0) document.querySelector('.panel').classList.add('no-glass');
+function setPanelVisible(visible) {
+  panel.classList.toggle('faded', !visible);
+  panel.style.setProperty('opacity', visible ? '1' : '0', 'important');
+  panel.style.setProperty('pointer-events', visible ? 'auto' : 'none', 'important');
+  panel.style.setProperty('transition', 'opacity ' + (visible ? motion.fade_in_ms : motion.fade_out_ms) + 'ms ease', 'important');
+  if (app) app.panel_visible(visible);
+}
+function scheduleFade() {
+  clearTimeout(fadeTimer);
+  if (motion.auto_fade && !imageHovered && !panelHovered && !nativePanelHovered && !fadePaused && !colorPreviewOpen && !windowActive) {
+    fadeTimer = setTimeout(() => setPanelVisible(false), motion.fade_delay_ms);
+  }
+}
+panel.addEventListener('pointerenter', () => {
+  panelHovered = true;
+  showPanel();
+});
+panel.addEventListener('pointerleave', () => {
+  panelHovered = false;
+  scheduleFade();
+});
+function showPanel() {
+  setPanelVisible(true);
+  scheduleFade();
+}
+function setWindowActive(active) {
+  windowActive = active;
+  if(!active){hideNavbar();}
+  if (active) {
+    if(motion.avatar_enabled!==false||!motion.auto_fade||!panel.classList.contains('faded'))showPanel();
+    if (!document.getElementById('inline-settings')) activeLookupQuery().focus({preventScroll:true});
+  }
+  else {
+    scheduleFade();
+  }
+}
+function dictionaryHover(inside) {
+  nativePanelHovered = inside;
+  if (inside) showPanel(); else scheduleFade();
+}
+function avatarHover(inside) {
+  imageHovered = inside;
+  if (inside) showPanel(); else scheduleFade();
+}
+function pauseFade() {
+  fadePaused = true;
+  clearTimeout(fadeTimer);
+  setPanelVisible(true);
+}
+function resumeFade() { fadePaused = false; scheduleFade(); }
+function beginColorPreview(){
+  if(!colorPreviewOpen){colorPreviewWasPaused=fadePaused;colorPreviewOpen=true;}
+  pauseFade();
+}
+function endColorPreview(){
+  if(!colorPreviewOpen)return;
+  colorPreviewOpen=false;fadePaused=colorPreviewWasPaused;scheduleFade();
+}
+function setQuery(word) {
+  closeSettings();
+  query.value = word;
+  updateClearButton();
+  query.focus();
+  query.select();
+  showPanel();
+}
+const query = document.getElementById('query');
+new QWebChannel(qt.webChannelTransport, channel => {
+  app = channel.objects.app;
+  if (query.value) app.search(query.value);
+  query.focus();
+  query.select();
+  scheduleFade();
+});
+function updateClearButton() {
+  document.getElementById('clear-query').hidden = query.value.length === 0;
+}
+updateClearButton();
+let composingQuery = false;
+function scheduleLookup(event) {
+  updateClearButton();
+  showPanel();
+  clearTimeout(timer);
+  if (composingQuery || event?.isComposing) return;
+  // Broad wildcard scans are explicit searches; Enter still runs immediately.
+  let wildcard = false;
+  for (let i=0; i<query.value.length; i++) {
+    if (query.value[i] === '\\') { i++; continue; }
+    if ('*?'.includes(query.value[i])) { wildcard=true; break; }
+  }
+  if (wildcard) return;
+  timer = setTimeout(() => { if (app) app.search(query.value); }, 180);
+}
+query.addEventListener('input', scheduleLookup);
+query.addEventListener('compositionstart', () => { composingQuery = true; clearTimeout(timer); });
+query.addEventListener('compositionend', () => { composingQuery = false; scheduleLookup(); });
+// Return typing to search after clicking results or toolbar controls.
+document.addEventListener('keydown', event => {
+  if(window.popupScanConsumes?.(event))return;
+  if(['Enter',' '].includes(event.key)&&event.target.closest('summary,.dictionary-collapse-defaults,.dictionary-nav a,.lookup-close-pane,#lookup-close-extras'))return;
+  if (document.getElementById('inline-settings') || event.target.closest('input,textarea,select') ||
+      event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.key.length === 1 || ['Backspace', 'Delete', 'Enter', 'Process', 'Unidentified'].includes(event.key)) {
+    const target=activeLookupQuery();target.focus({preventScroll:true});
+    if (event.key.length === 1) {
+      event.preventDefault();
+      target.setRangeText(event.key, target.selectionStart, target.selectionEnd, 'end');
+      target.dispatchEvent(new Event('input', {bubbles:true}));
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      if (app)submitLookup(activeLookup);
+    }
+  }
+}, true);
+results.addEventListener('mouseup', event => {
+  if(event.target.closest('summary,.dictionary-collapse-defaults'))return;
+  if (!window.getSelection().toString() && !document.getElementById('inline-settings'))
+    query.focus({preventScroll:true});
+});
+query.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !event.isComposing && !composingQuery && event.keyCode !== 229) {
+    clearTimeout(timer);
+    if (app) app.search(query.value);
+  }
+});
+document.getElementById('dictionaries').onclick = () => { clearTimeout(timer); if (app) app.dictionaries(); };
+document.getElementById('reading-stats-button').onclick=()=>{if(app)app.reading_stats();};
+document.getElementById('translation-button').onclick=()=>{if(app)app.translation();};
+document.getElementById('settings').onclick = () => { showPanel(); if (app) app.settings(); };
+pin.onclick = () => { showPanel(); if (app) app.keep_above(updateKeepAbove); };
+function updatePaneFadeToggle() {
+  const button=document.getElementById('pane-stay-visible');
+  const keepVisible=!motion.auto_fade;
+  button.setAttribute('aria-pressed',String(keepVisible));button.classList.remove('active');
+  button.title=keepVisible?'Allow dictionary to fade when unfocused':'Keep dictionary visible';button.setAttribute('aria-label',button.title);
+  button.querySelector('.projector-beam').style.display=keepVisible?'':'none';
+}
+document.getElementById('pane-stay-visible').onclick=()=>{
+  motion.auto_fade=!motion.auto_fade;updatePaneFadeToggle();showPanel();
+  if(app)app.preference('auto_fade',JSON.stringify(motion.auto_fade));
+};
+updatePaneFadeToggle();
+rotatePanes.onclick = () => app && app.rotate_panes(updatePaneOrientation);
+document.getElementById('swap').onclick = () => app && app.swap();
+avatarPosition.onclick = () => app && app.toggle_avatar_position(updateAvatarPosition);
+document.getElementById('clear-query').onclick = () => {
+  query.value = '';
+  query.dispatchEvent(new Event('input', {bubbles: true}));
+  clearTimeout(timer);
+  if (app) app.search('');
+  query.focus();
+};
+document.getElementById('toolbar').onpointerdown = event => {
+  if (event.button === 0 && !event.target.closest('button') && app) app.start_move();
+};
+function updateBackToTop() {
+  backToTop.style.setProperty('display', results.scrollTop > 180 ? 'grid' : 'none', 'important');
+}
+function applyDictionaryCollapseDefaults(paths) {
+  const collapsed=new Set(paths);
+  document.querySelectorAll('#lookup-area details.dictionary').forEach(group=>group.open=!collapsed.has(group.dataset.dictionaryPath));
+}
+document.getElementById('lookup-area').addEventListener('click',event=>{
+  if(event.target.closest('.dictionary-collapse-defaults')){app?.collapse_settings();return;}
+  const link=event.target.closest('.dictionary-nav a[href^="#"]');
+  if(link){
+    const container=link.closest('.results');
+    const group=container?.querySelector(link.getAttribute('href'));
+    if(group){event.preventDefault();group.open=true;group.scrollIntoView({block:'start'});}
+  }
+});
+function updateDictionaryNavToggle(container=results) {
+  const wrapper = container.querySelector('.dictionary-nav-wrap');
+  if (!wrapper) return;
+  const nav = wrapper.querySelector('.dictionary-nav');
+  const button = wrapper.querySelector('.dictionary-nav-toggle');
+  const rows = new Set(Array.from(nav.children, link => link.offsetTop));
+  const collapsible = rows.size > 1;
+  wrapper.classList.toggle('collapsible', collapsible);
+  button.hidden = !collapsible;
+  if (!collapsible) {
+    wrapper.classList.remove('collapsed', 'expanded');
+    button.setAttribute('aria-expanded', 'false');
+    return;
+  }
+  const expanded = wrapper.classList.contains('expanded');
+  wrapper.classList.toggle('collapsed', !expanded);
+  button.setAttribute('aria-expanded', String(expanded));
+  button.textContent = expanded ? '↑' : '↓';
+  button.title=expanded?'Show fewer dictionaries':'Show all dictionaries';button.setAttribute('aria-label',button.title);
+  button.onclick = () => {
+    const open = !wrapper.classList.contains('expanded');
+    wrapper.classList.toggle('expanded', open);
+    wrapper.classList.toggle('collapsed', !open);
+    button.setAttribute('aria-expanded', String(open));
+    button.textContent = open ? '↑' : '↓';
+    button.title=open?'Show fewer dictionaries':'Show all dictionaries';button.setAttribute('aria-label',button.title);
+  };
+}
+window.addEventListener('resize', () => requestAnimationFrame(()=>updateDictionaryNavToggle()));
+backToTop.onclick = () => results.scrollTo({top: 0, behavior: 'smooth'});
+results.addEventListener('scroll', updateBackToTop);
+document.getElementById('results').addEventListener('pointermove', () => {
+  if (!document.querySelector('.panel').classList.contains('faded')) scheduleFade();
+});
+document.getElementById('results').addEventListener('wheel', () => {
+  if (!document.querySelector('.panel').classList.contains('faded')) scheduleFade();
+}, {passive: true});
+document.getElementById('results').addEventListener('click', event => {
+  const link = event.target.closest('a[href^="?query="]');
+  if (!link || !app) return;
+  event.preventDefault();
+  const word = new URLSearchParams(link.getAttribute('href').slice(1)).get('query');
+  if (word) { query.value = word; updateClearButton(); app.search(word); }
+});
+function renderResults(markup, expectedQuery) {
+  if (expectedQuery !== undefined && query.value.trim() !== expectedQuery) return;
+  results.innerHTML = markup;
+  animatePaneContent(results);
+  results.scrollTop = 0;
+  requestAnimationFrame(()=>updateDictionaryNavToggle());
+  updateBackToTop();
+  showPanel();
+}
+
+applyEntryFonts(motion);
+/* LOOKUP_GRID_JS */
+</script>
+</body>
+</html>
