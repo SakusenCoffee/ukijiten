@@ -23,7 +23,7 @@ python ukijiten.py
 Open Dictionaries → Add dictionaries to import Yomitan ZIP files.
 Open Statistics → Settings to configure reading sources and Anki decks.
 
-Click the search icon to open lookup history. Sort by newest or oldest, then
+Click the search icon to open a scrollable history column on the left. Sort by newest or oldest, then
 choose a headword to load it in the same search pane.
 
 Mokuro Browser imports update automatically. Its live indicator appears only

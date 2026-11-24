@@ -142,6 +142,10 @@ with tempfile.TemporaryDirectory() as directory:
         assert {row['query'] for row in window.search_history.entries()} >= {'先生','先制','先'}
         js("lookupCells.get(2).root.querySelector('.search-icon').click()")
         wait_until(lambda:js("document.querySelectorAll('.search-history-entry').length>=3"))
+        assert js("(()=>{const cell=lookupCells.get(2),history=document.querySelector('.search-history-popup'),h=history.getBoundingClientRect(),r=cell.output.getBoundingClientRect(),c=cell.content.getBoundingClientRect();return history.parentElement===cell.content&&Math.abs(h.top-c.top)<1&&Math.abs(h.bottom-c.bottom)<1&&h.right<=r.left;})()")
+        assert js("getComputedStyle(document.querySelector('.search-history-list')).overflowY")=='auto'
+        js("window.dispatchEvent(new Event('resize'))")
+        assert js("!!document.querySelector('.search-history-popup')")
         assert js("document.querySelector('.search-history-sort').textContent")=='↓ Newest first'
         js("document.querySelector('.search-history-sort').click()")
         wait_until(lambda:js("document.querySelector('.search-history-sort').textContent==='↑ Oldest first'"))

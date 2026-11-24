@@ -17,6 +17,8 @@ function registerLookupCell(id,root){
   const input=root.querySelector('input'),output=root.querySelector('.results'),clear=root.querySelector('button:not(.search-icon)');
   root.dataset.lookupId=id;
   const cell={id,root,input,output,clear,timer:null,composing:false};lookupCells.set(id,cell);
+  const content=document.createElement('div');content.className='lookup-content';
+  output.before(content);content.append(output);cell.content=content;
   const close=document.createElement('button');close.type='button';close.className='lookup-close-pane';close.title='Close search pane';close.setAttribute('aria-label','Close search pane');close.hidden=true;
   close.onclick=event=>{event.stopPropagation();closeLookupPane(id);};root.append(close);cell.close=close;
   const history=root.querySelector('.search-icon');

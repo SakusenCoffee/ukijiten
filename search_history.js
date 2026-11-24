@@ -7,7 +7,9 @@ function closeSearchHistory(){
 }
 function openSearchHistory(pane,anchor){
   if(searchHistoryAnchor===anchor){closeSearchHistory();return;}
-  closeSearchHistory();showPanel();searchHistoryPane=pane;searchHistoryAnchor=anchor;
+  closeSearchHistory();
+  const cell=lookupCells.get(pane);if(!cell)return;
+  showPanel();searchHistoryPane=pane;searchHistoryAnchor=anchor;
   anchor.setAttribute('aria-expanded','true');
   const popup=document.createElement('div');popup.className='search-history-popup';popup.setAttribute('role','dialog');popup.setAttribute('aria-label','Search history');
   const sort=document.createElement('button');sort.type='button';sort.className='search-history-sort';
@@ -34,13 +36,9 @@ function openSearchHistory(pane,anchor){
       list.onscroll=()=>{if(shown<rows.length&&list.scrollHeight-list.scrollTop-list.clientHeight<60)append();};
     });
   };
-  sort.onclick=()=>{searchHistoryOldest=!searchHistoryOldest;load();};popup.append(sort,list);panel.append(popup);searchHistoryPopup=popup;
-  const bounds=panel.getBoundingClientRect(),position=anchor.getBoundingClientRect();
-  popup.style.left=Math.max(8,Math.min(position.left-bounds.left,bounds.width-Math.min(300,bounds.width-16)-8))+'px';
-  popup.style.top=Math.min(position.bottom-bounds.top+5,bounds.height-80)+'px';
-  popup.style.maxHeight=Math.max(60,bounds.bottom-position.bottom-16)+'px';load();
+  sort.onclick=()=>{searchHistoryOldest=!searchHistoryOldest;load();};popup.append(sort,list);
+  cell.content.prepend(popup);searchHistoryPopup=popup;load();
 }
 document.addEventListener('pointerdown',event=>{if(searchHistoryPopup&&!searchHistoryPopup.contains(event.target)&&!searchHistoryAnchor.contains(event.target))closeSearchHistory();},true);
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&searchHistoryPopup){const anchor=searchHistoryAnchor;closeSearchHistory();anchor.focus();event.preventDefault();event.stopImmediatePropagation();}},true);
-window.addEventListener('resize',closeSearchHistory);
 window.addEventListener('blur',closeSearchHistory);
