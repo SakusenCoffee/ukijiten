@@ -8,6 +8,20 @@ function makeSettingsSection(title,key){
   const summary=document.createElement('summary');summary.textContent=title;section.append(summary);
   rememberSection(section,key);return section;
 }
+function folderPickerControl(choose,remove){
+  const group=document.createElement('div');group.className='folder-picker-control';group.append(choose,remove);return group;
+}
+function previewSettingsSection(section){
+  const summary=section.querySelector(':scope > summary'),first=summary.nextElementSibling;
+  if(!first)return;
+  const group=document.createElement('section');group.className='settings-preview-group';
+  const heading=document.createElement('button');heading.type='button';heading.className='settings-preview-heading';heading.textContent=summary.textContent;
+  heading.onclick=()=>{section.open=!section.open;};
+  summary.textContent='';summary.setAttribute('aria-label','Expand or collapse '+heading.textContent);
+  section.before(group);group.append(heading,first,section);
+  const sync=()=>{heading.setAttribute('aria-expanded',String(section.open));group.classList.toggle('expanded',section.open);};
+  section.addEventListener('toggle',sync);sync();
+}
 function collapseSettingsSections(area,prefix){
   for(const heading of [...area.querySelectorAll(':scope > h3')]){
     if(heading.textContent==='Dictionaries')continue;

@@ -158,6 +158,7 @@ function applyPreferences(values) {
   document.querySelectorAll('[data-background-fade]').forEach(input=>input.disabled=!motion.background_crossfade);
   document.querySelectorAll('[data-folder-control]').forEach(control => { control.disabled = !(control.dataset.folderControl === 'background' ? values.background_folder : values.avatar_folder); });
   const removeAvatar=document.getElementById('remove-avatar-folder');if(removeAvatar)removeAvatar.hidden=!values.avatar_folder;
+  const removeBackground=document.getElementById('remove-background-folder');if(removeBackground)removeBackground.hidden=!values.background_folder;
   for(const [id,key] of [['edit-avatar-image','avatar'],['edit-background-image','background_image']]){
     const button=document.getElementById(id);if(button)button.disabled=!motion[key];
   }
@@ -227,8 +228,6 @@ function showSettings(values) {
   area.append(close);
   const heading = document.createElement('h2'); heading.textContent = 'Settings'; area.append(heading);
   const fields = [
-    ['pane_order','Pane order','button'],
-    ['avatar_vertical_position','Avatar position','select'],
     ['avatar_fill_pane','Fill avatar pane (keep proportions)','checkbox'],
     ['avatar_auto_mirror_sides','Auto-mirror avatar when swapping sides (⇄)','checkbox'],
     ['avatar_auto_mirror_vertical','Auto-mirror avatar when moving top/bottom (⇅)','checkbox'],
@@ -276,13 +275,15 @@ function showSettings(values) {
   image.onclick = () => app.choose_image();
   const sourceButtons=document.createElement('div'); sourceButtons.className='settings-source-buttons';
   const folder=document.createElement('button'); folder.textContent='Choose folder…'; folder.onclick=()=>app.choose_folder();
-  const removeAvatar=document.createElement('button');removeAvatar.id='remove-avatar-folder';removeAvatar.textContent='Remove avatar folder';removeAvatar.hidden=!values.avatar_folder;removeAvatar.onclick=()=>app.preference('avatar_folder',JSON.stringify(''));
+  const removeAvatar=document.createElement('button');removeAvatar.id='remove-avatar-folder';removeAvatar.textContent='×';removeAvatar.title='Remove avatar folder';removeAvatar.setAttribute('aria-label','Remove avatar folder');removeAvatar.hidden=!values.avatar_folder;removeAvatar.onclick=()=>app.preference('avatar_folder',JSON.stringify(''));
   const avatarToggle=document.createElement('button');avatarToggle.id='avatar-toggle';avatarToggle.textContent='Dict. Only';avatarToggle.setAttribute('aria-pressed',String(values.avatar_enabled===false));
   avatarToggle.onclick=()=>{motion.avatar_enabled=motion.avatar_enabled===false;values.avatar_enabled=motion.avatar_enabled;avatarToggle.classList.toggle('active',!motion.avatar_enabled);app.preference('avatar_enabled',JSON.stringify(motion.avatar_enabled));};
   const imageToggle=document.createElement('button');imageToggle.id='avatar-image-toggle';imageToggle.textContent=values.avatar_hidden?'Show avatar':'Hide avatar';imageToggle.setAttribute('aria-pressed',String(!values.avatar_hidden));
   imageToggle.onclick=()=>{motion.avatar_hidden=!motion.avatar_hidden;values.avatar_hidden=motion.avatar_hidden;imageToggle.textContent=motion.avatar_hidden?'Show avatar':'Hide avatar';app.preference('avatar_hidden',JSON.stringify(motion.avatar_hidden));};
   avatarToggle.classList.toggle('active',values.avatar_enabled===false);
-  sourceButtons.append(image,folder,removeAvatar,avatarToggle,imageToggle); area.append(sourceButtons);
+  const avatarPicker=document.createElement('div');avatarPicker.className='settings-source-buttons';
+  avatarPicker.append(image,folderPickerControl(folder,removeAvatar));
+  sourceButtons.append(avatarToggle,imageToggle);area.append(avatarPicker,sourceButtons);
   const editAvatar=document.createElement('button');editAvatar.type='button';editAvatar.id='edit-avatar-image';editAvatar.textContent='Crop / resize…';editAvatar.disabled=!values.avatar;editAvatar.onclick=()=>app.edit_current_image('avatar');sourceButtons.append(editAvatar);
   function cornerControls(parent,kind){
     const controls=document.createElement('div');controls.className='pane-corner-controls';
@@ -300,12 +301,6 @@ function showSettings(values) {
   cornerControls(sourceButtons,'avatar');
   const status=document.createElement('p'); status.id='avatar-folder-status'; status.className='settings-intro';
   status.textContent=values.avatar_folder || ''; status.hidden=!values.avatar_folder; area.append(status);
-  const stacked = values.split_orientation === 'vertical';
-  if (stacked) {
-    const position = fields.find(field => field[0] === 'avatar_vertical_position');
-    position[0] = 'avatar_horizontal_position';
-    values.avatar_horizontal_position = values.avatar_right ? 'right' : 'left';
-  }
   fields.unshift(['avatar_seconds','Avatar interval (sec)','number',1,86400], ['background_seconds','Background interval (sec)','number',1,86400], ['avatar_order','Avatar folder order','select'], ['background_order','Background folder order','select'], ['avatar_crossfade','Avatar crossfade','checkbox'], ['avatar_fade_ms','Avatar fade (ms)','number',50,10000], ['background_crossfade','Background crossfade','checkbox'], ['background_fade_ms','Background fade (ms)','number',50,10000]);
   for (const [key,title,type,min,max] of fields) {
     const sectionTitles = {pane_order:'Avatar & layout', blur_px:'Background & appearance', auto_fade:'Motion & visibility'};
@@ -367,8 +362,7 @@ function showSettings(values) {
   for (const heading of [...area.querySelectorAll('h3')]) {
     if (heading.textContent === 'Avatar & layout') heading.remove();
   }
-  const imageSection=makeSettingsSection('Image & pane options','main-images');
-  imageSection.id='image-pane-options';controls.hidden=false;imageSection.append(controls);
+  controls.hidden=false;area.append(controls);
   const sourceStatus=area.querySelector('#avatar-folder-status');
   const backgroundButtons=document.createElement('div'); backgroundButtons.className='settings-source-buttons';
   const backgroundImage=document.createElement('button'); backgroundImage.textContent='Choose background image…';
@@ -376,17 +370,18 @@ function showSettings(values) {
   const backgroundFolder=document.createElement('button'); backgroundFolder.textContent='Choose background folder…';
   backgroundFolder.onclick=()=>app.choose_background(true);
   backgroundFolder.title='Rotate supported images and GIFs at the background interval';
-  const removeBackground=document.createElement('button');removeBackground.textContent='Remove background folder';
+  const removeBackground=document.createElement('button');removeBackground.id='remove-background-folder';removeBackground.textContent='×';removeBackground.title='Remove background folder';removeBackground.setAttribute('aria-label','Remove background folder');removeBackground.hidden=!values.background_folder;
   removeBackground.onclick=()=>app.remove_background();
-  backgroundButtons.append(backgroundImage,backgroundFolder,removeBackground);
+  const backgroundPicker=document.createElement('div');backgroundPicker.className='settings-source-buttons';
+  backgroundPicker.append(backgroundImage,folderPickerControl(backgroundFolder,removeBackground));
   const editBackground=document.createElement('button');editBackground.type='button';editBackground.id='edit-background-image';editBackground.textContent='Crop / resize…';editBackground.disabled=!values.background_image;editBackground.onclick=()=>app.edit_current_image('background');backgroundButtons.append(editBackground);
   cornerControls(backgroundButtons,'dictionary');
   sourceStatus.after(backgroundButtons);
-  fontHeading.before(sourceButtons,status,backgroundButtons,imageSection);
+  fontHeading.before(avatarPicker,sourceButtons,status,backgroundPicker,backgroundButtons);
   collapseSettingsSections(area,'main');
   const avatarSection=makeSettingsSection('Avatar','main-avatar');avatarSection.id='avatar-settings';
   const backgroundSection=makeSettingsSection('Dictionary background','main-dictionary-background');backgroundSection.id='background-settings';
-  avatarSection.append(sourceButtons,status);backgroundSection.append(backgroundButtons);
+  avatarSection.append(avatarPicker,sourceButtons,status);backgroundSection.append(backgroundPicker,backgroundButtons);
   const visibility=document.createElement('div');visibility.className='background-pane-options';
   const visibilityTitle=document.createElement('span');visibilityTitle.textContent='Show image in';visibility.append(visibilityTitle);
   for(const [pane,title] of [['dictionary','Dictionary'],['popup','Popup dictionary'],['stats','Statistics'],['translation','Translation'],['settings','Settings']]){
@@ -397,7 +392,9 @@ function showSettings(values) {
     for(const key of keys){const row=area.querySelector('[data-setting="'+key+'"]');if(row)section.append(row);}
   }
   area.querySelector('[data-section="main-background-appearance"]')?.remove();
+  controls.remove();
   const firstSection=area.querySelector('details');firstSection.before(avatarSection,backgroundSection);
+  for(const section of [...area.querySelectorAll(':scope > .settings-section')])previewSettingsSection(section);
   panel.append(area);
   animatePaneContent(area);
 }

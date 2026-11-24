@@ -428,8 +428,9 @@ with tempfile.TemporaryDirectory() as directory:
         window.open_settings()
         assert js("!!document.getElementById('inline-settings')")
         assert js("document.querySelector('[data-background-fade]').disabled")
-        assert js("[...document.querySelectorAll('#inline-settings > .settings-section')].every(section=>!section.open)")
-        assert js("document.getElementById('image-pane-options').nextElementSibling.dataset.section")=='main-entry-text-size'
+        assert js("[...document.querySelectorAll('#inline-settings .settings-preview-group > .settings-section')].every(section=>!section.open)")
+        assert not js("!!document.getElementById('image-pane-options')")
+        assert js("[...document.querySelectorAll('.settings-preview-group')].every(group=>group.children[1].getBoundingClientRect().height>0)")
         # Image visibility follows each pane and its related settings pages.
         assert js("document.querySelectorAll('.background-pane-options input').length")==5
         js("document.getElementById('background-settings').open=true;document.querySelector('input[data-background-pane=settings]').click()")
@@ -1171,7 +1172,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert js("!!(document.querySelector('[data-setting=font_frequency]').compareDocumentPosition(document.querySelector('[data-setting=font_pitch]'))&Node.DOCUMENT_POSITION_FOLLOWING)")
         assert not js("document.getElementById('inline-settings').textContent.includes('Manage dictionaries')")
         js("document.querySelector('[data-section=main-entry-text-size]').open=true")
-        assert js("document.querySelector('[data-section=main-entry-text-size] [data-setting]').dataset.setting")=='font_family'
+        assert js("document.querySelector('[data-section=main-entry-text-size]').parentElement.querySelector('[data-setting]').dataset.setting")=='font_family'
         assert js("document.querySelector('[data-setting=font_headword] span').textContent")=='Headword (px)'
         assert js("[...document.querySelectorAll('[data-setting=font_family] optgroup')].some(group=>group.label==='Chinese · Simplified')")
         js("const entryFont=document.querySelector('[data-setting=font_family] select');entryFont.value='Yomogi';entryFont.dispatchEvent(new Event('change',{bubbles:true}))")
@@ -1256,7 +1257,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert abs(floating.load_settings()['splitter_ratio']-ratio)<.001
         window.open_settings()
         wait_until(lambda:js("!!document.getElementById('avatar-toggle')"))
-        assert js("document.getElementById('avatar-toggle').previousElementSibling.id")=='remove-avatar-folder'
+        assert js("document.getElementById('remove-avatar-folder').parentElement.classList.contains('folder-picker-control')")
         assert not js("!!document.querySelector('#toolbar #avatar-toggle')")
         assert js("document.getElementById('avatar-toggle').textContent")=='Dict. Only'
         old_sizes=window.splitter.sizes()
