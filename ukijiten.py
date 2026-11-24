@@ -4,6 +4,7 @@ import html
 from entry_metadata import sources as metadata_sources, MetadataCache
 from concurrent.futures import ThreadPoolExecutor
 from reading_stats import ReadingStats
+from search_history import SearchHistory
 from mokuro_browser_feed import MokuroBrowserFeed
 from reading_history import query_history,delete_history,history_text
 from stats_feed import StatsFeed
@@ -615,16 +616,23 @@ class Bridge(QObject):
 
     @Slot(str)
     def search(self, query):
+        self.owner.history_requests[0]=query.strip()
         self.owner.search(query)
 
     @Slot(str)
     def search_secondary(self,query):
+        self.owner.history_requests[1]=query.strip()
         self.owner.secondary_query=query.strip()
         self.owner.secondary_worker.submit(self.owner.secondary_query)
 
     @Slot(int, str)
     def search_pane(self, pane_id, query):
+        self.owner.history_requests[pane_id]=query.strip()
         self.owner.search_extra_pane(pane_id, query)
+
+    @Slot(bool,result=str)
+    def search_history(self, oldest):
+        return json.dumps(self.owner.search_history.entries(oldest),ensure_ascii=False)
 
     @Slot()
     def settings(self):
@@ -1196,6 +1204,9 @@ class FloatingDictionary(QWidget):
         self.tray.show()
         self.source_settings = StatsSettings(CONFIG_DIR)
         reset_interrupted_connections(CONFIG_DIR)
+        self.search_history = SearchHistory(CONFIG_DIR/'search-history.sqlite3')
+        self.history_requests = {}
+        QApplication.instance().aboutToQuit.connect(self.search_history.close)
         self.stats_store = ReadingStats(CONFIG_DIR / 'reading-stats.sqlite3')
         source_values = self.source_settings.values
         self.stats_store.set_preference('day_cutoff_hour',source_values['day']['cutoff_hour'])
@@ -1609,7 +1620,7 @@ class FloatingDictionary(QWidget):
         markup = (ROOT / 'floating_page.html').read_text(encoding='utf-8')
         markup = markup.replace('/* CONTRAST_JS */', (ROOT / 'appearance_contrast.js').read_text())
         markup = markup.replace('/* ENTRY_FONT_JS */', (ROOT / 'entry_fonts.js').read_text())
-        markup = markup.replace('/* LOOKUP_GRID_JS */', (ROOT / 'lookup_grid.js').read_text())
+        markup = markup.replace('/* LOOKUP_GRID_JS */', (ROOT/'search_history.js').read_text()+'\n'+(ROOT / 'lookup_grid.js').read_text())
         markup = markup.replace('/* BASE_CSS */', DEFAULT_CSS + (ROOT / 'reading_stats.css').read_text() + (ROOT / 'pitch_accent.css').read_text()+(ROOT/'entry_style.css').read_text()+(ROOT/'translation.css').read_text()).replace('/* CUSTOM_CSS */', custom)
         markup = markup.replace('INITIAL_QUERY', html.escape(self.query, quote=True))
         page_settings = {
@@ -2024,6 +2035,10 @@ class FloatingDictionary(QWidget):
             renderer='renderSecondaryResults' if secondary else 'renderResults'
         if query != expected:
             return
+        history_pane=pane_id if pane_id is not None else 1 if secondary else 0
+        if self.history_requests.get(history_pane)==query:
+            self.history_requests.pop(history_pane,None)
+            if entries and not error:self.search_history.add(query,entries[0][0])
         if error:
             self.web.page().runJavaScript(renderer+'(' + json.dumps('<div class="empty">' + html.escape(error) + '</div>') + ',' + json.dumps(query) + ')')
             return

@@ -14,11 +14,13 @@ function submitLookup(id){
   else app.search_pane(id,cell.input.value);
 }
 function registerLookupCell(id,root){
-  const input=root.querySelector('input'),output=root.querySelector('.results'),clear=root.querySelector('button');
+  const input=root.querySelector('input'),output=root.querySelector('.results'),clear=root.querySelector('button:not(.search-icon)');
   root.dataset.lookupId=id;
   const cell={id,root,input,output,clear,timer:null,composing:false};lookupCells.set(id,cell);
   const close=document.createElement('button');close.type='button';close.className='lookup-close-pane';close.title='Close search pane';close.setAttribute('aria-label','Close search pane');close.hidden=true;
   close.onclick=event=>{event.stopPropagation();closeLookupPane(id);};root.append(close);cell.close=close;
+  const history=root.querySelector('.search-icon');
+  if(history){history.innerHTML=searchHistoryIcon;history.onclick=()=>openSearchHistory(id,history);}
   input.addEventListener('focus',()=>activeLookup=id);
   if(id===0)return cell;
   input.setAttribute('aria-label','Lookup '+(id+1));
@@ -50,7 +52,7 @@ lookupArea.addEventListener('pointerdown',event=>{const pane=event.target.closes
 function createLookupCell(id){
   if(lookupCells.has(id))return lookupCells.get(id);
   const root=document.createElement('section');root.className='lookup-pane';root.id='lookup-pane-'+id;
-  root.innerHTML='<div class="searchbar"><span class="search-icon">⌕</span><input type="text" autocomplete="off"><button type="button" title="Clear search" aria-label="Clear search" hidden>×</button></div><div class="results"></div>';
+  root.innerHTML='<div class="searchbar"><button class="search-icon" type="button" title="Search history" aria-label="Search history" aria-haspopup="dialog" aria-expanded="false">⌕</button><input type="text" autocomplete="off"><button type="button" title="Clear search" aria-label="Clear search" hidden>×</button></div><div class="results"></div>';
   return registerLookupCell(id,root);
 }
 function normalizedLookupWeights(values,count){

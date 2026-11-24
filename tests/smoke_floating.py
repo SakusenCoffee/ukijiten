@@ -139,6 +139,22 @@ with tempfile.TemporaryDirectory() as directory:
         js("const third=lookupCells.get(2).input;third.value='先';third.dispatchEvent(new Event('input',{bubbles:true}))")
         wait_until(lambda:js("lookupCells.get(2).output.querySelector('.entry h3')?.textContent==='先'"))
         assert window.extra_queries[2]=='先' and window.query=='先生' and window.secondary_query=='先制'
+        assert {row['query'] for row in window.search_history.entries()} >= {'先生','先制','先'}
+        js("lookupCells.get(2).root.querySelector('.search-icon').click()")
+        wait_until(lambda:js("document.querySelectorAll('.search-history-entry').length>=3"))
+        assert js("document.querySelector('.search-history-sort').textContent")=='↓ Newest first'
+        js("document.querySelector('.search-history-sort').click()")
+        wait_until(lambda:js("document.querySelector('.search-history-sort').textContent==='↑ Oldest first'"))
+        js("[...document.querySelectorAll('.search-history-entry')].find(row=>row.textContent==='先生').click()")
+        wait_until(lambda:window.extra_queries[2]=='先生')
+        assert not js("!!document.querySelector('.search-history-popup')")
+        assert js("lookupCells.get(2).input.value")=='先生'
+        js("lookupCells.get(2).root.querySelector('.search-icon').click()")
+        wait_until(lambda:js("!!document.querySelector('.search-history-popup')"))
+        js("lookupCells.get(2).input.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))")
+        assert not js("!!document.querySelector('.search-history-popup')")
+        js("lookupCells.get(2).input.value='先';submitLookup(2)")
+        wait_until(lambda:window.extra_queries[2]=='先')
         assert window.extra_workers[2].executor is window.secondary_worker.executor
         js("document.getElementById('lookup-add-row').click();document.getElementById('lookup-add-row').click()")
         wait_until(lambda:len(window.settings['lookup_grid'])==3)

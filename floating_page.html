@@ -40,7 +40,7 @@
   <div id="lookup-area">
   <section class="lookup-pane" id="primary-lookup">
   <div class="searchbar">
-    <span class="search-icon">⌕</span>
+    <button class="search-icon" type="button" title="Search history" aria-label="Search history" aria-haspopup="dialog" aria-expanded="false">⌕</button>
     <input id="query" type="text" placeholder="" value="INITIAL_QUERY" autocomplete="off" autofocus>
     <button id="clear-query" type="button" title="Clear search" aria-label="Clear search">×</button>
   </div>
@@ -48,7 +48,7 @@
   </section>
   <div id="lookup-divider" role="separator" tabindex="0" aria-label="Resize lookup panes" aria-orientation="vertical" hidden></div>
   <section class="lookup-pane" id="secondary-lookup" hidden>
-    <div class="searchbar"><span class="search-icon">⌕</span><input id="secondary-query" type="text" aria-label="Right lookup" autocomplete="off"><button id="secondary-clear" type="button" aria-label="Clear right lookup">×</button></div>
+    <div class="searchbar"><button class="search-icon" type="button" title="Search history" aria-label="Search history" aria-haspopup="dialog" aria-expanded="false">⌕</button><input id="secondary-query" type="text" aria-label="Right lookup" autocomplete="off"><button id="secondary-clear" type="button" aria-label="Clear right lookup">×</button></div>
     <div id="secondary-results" class="results"></div>
   </section>
   </div>
