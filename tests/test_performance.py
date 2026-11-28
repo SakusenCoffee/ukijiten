@@ -150,7 +150,7 @@ class AsyncTests(unittest.TestCase):
         class Cache:
             def enrich(self,entries,selection,cancelled):
                 threads.append(get_ident())
-                if entries==['old']:
+                if entries[0][0]=='old':
                     started.set();cancelled.wait(1)
                 return MetadataResults(entries,{'selection':selection})
         owner.metadata_cache=Cache()
@@ -158,7 +158,7 @@ class AsyncTests(unittest.TestCase):
         owner.metadata_selection_provider=lambda:selection
         owner.ready.connect(lambda query,rows,error:received.append((query,rows,error)))
         try:
-            with patch('async_lookup.lookup',lambda query,cancelled:[query]):
+            with patch('async_lookup.lookup',lambda query,cancelled:[(query, '', '["definition"]', 1, 'Test')]):
                 owner.submit('old')
                 self.assertTrue(started.wait(1))
                 selection=(('first.zip','second.zip'),())
@@ -179,14 +179,14 @@ class AsyncTests(unittest.TestCase):
         owner.ready.connect(lambda q,rows,error:received.append((q,rows,error)))
         def slow(query,cancelled):
             if query=='old': cancelled.wait(.5)
-            return [query]
+            return [(query, '', '["definition"]', 1, 'Test')]
         try:
             with patch('async_lookup.lookup',slow):
                 owner.submit('old');owner.submit('new')
                 deadline=time.monotonic()+2
                 while not received and time.monotonic()<deadline:
                     app.processEvents();time.sleep(.005)
-                self.assertEqual(received,[('new',['new'],'')])
+                self.assertEqual(received,[('new', [('new', '', '["definition"]', 1, 'Test')], '')])
                 owner.submit('old');owner.cancel()
                 for _ in range(10):app.processEvents();time.sleep(.005)
                 self.assertEqual(len(received),1)

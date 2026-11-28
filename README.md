@@ -52,3 +52,5 @@ QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -p 'test_*.py'
 
 Bundled fonts and libraries include their licenses. Kanji reference sources are
 listed in [assets/KANJI-SOURCES.md](assets/KANJI-SOURCES.md).
+
+Search architecture, measurements and validation: [performance review](docs/performance-review.md).

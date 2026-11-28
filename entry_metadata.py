@@ -10,21 +10,18 @@ from pitch_accent import hiragana,parse_accents,morae,render_variant
 
 
 def sources(database):
-    rows=database.execute('SELECT id,title,path FROM dictionaries ORDER BY sort_order,id').fetchall()
     columns={row[1] for row in database.execute('PRAGMA table_info(dictionaries)')}
+    flags = ('has_frequency', 'has_pitch', 'has_kanji', 'has_kanji_frequency')
+    selected = ','.join(name if name in columns else '0' for name in flags)
+    rows = database.execute(f'SELECT id,title,path,{selected} FROM dictionaries ORDER BY sort_order,id').fetchall()
     has_table=database.execute("SELECT 1 FROM sqlite_master WHERE name='term_metadata'").fetchone()
     result=[]
-    for did,title,path in rows:
-        frequency=pitch=False
-        if 'has_frequency' in columns:
-            frequency,pitch=map(bool,database.execute('SELECT has_frequency,has_pitch FROM dictionaries WHERE id=?',(did,)).fetchone())
+    for did,title,path,*values in rows:
+        frequency,pitch,kanji,kanji_frequency = map(bool, values)
         if has_table and 'has_frequency' not in columns:
             kinds={row[0] for row in database.execute('SELECT DISTINCT mode FROM term_metadata WHERE dictionary_id=?',(did,))}
             frequency|='freq' in kinds;pitch|='pitch' in kinds
         pitch|='nhk' in title.lower()
-        kanji=kanji_frequency=False
-        if 'has_kanji' in columns:
-            kanji,kanji_frequency=map(bool,database.execute('SELECT has_kanji,has_kanji_frequency FROM dictionaries WHERE id=?',(did,)).fetchone())
         result.append(dict(id=did,title=title,path=path,frequency=frequency,pitch=pitch,kanji=kanji,kanji_frequency=kanji_frequency))
     return result
 

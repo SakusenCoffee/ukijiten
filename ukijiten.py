@@ -5,18 +5,20 @@ from entry_metadata import sources as metadata_sources, MetadataCache
 from concurrent.futures import ThreadPoolExecutor
 from reading_stats import ReadingStats
 from search_history import SearchHistory
+from dictionary_detail import lookup_detail
+from dictionary_render import render_definition
 from mokuro_browser_feed import MokuroBrowserFeed
 from reading_history import query_history,delete_history,history_text
 from stats_feed import StatsFeed
 from anki_stats_feed import AnkiStatsFeed
 from anki_insights import load_insights, kanji_options, clean_kanji_preferences
-from stats_refresh import refresh_sources, refresh_configured
+from stats_refresh import refresh_configured
 from stats_settings import StatsSettings
 from anki_stats import available_decks, config_version
 import copy
 from import_assets import list_assets, import_path, remove as remove_import_asset
 from browser_cloud import BrowserCloudConnection
-from mokuro_cloud import connection_summary, disconnect_account, connection_update, reset_interrupted_connections
+from mokuro_cloud import connection_summary, disconnect_account, reset_interrupted_connections
 import json
 import os
 import ctypes
@@ -28,8 +30,8 @@ from async_lookup import AsyncLookup
 from hover_lookup import HoverLookup
 from character_lookup import CharacterLookup, headword_markup, is_character
 from translation import Translator, detect_language, load_models, connect_codex, translate
-from image_editor import ImageEditDialog, export_edit, source_and_edit, avatar_rect
-from image_effects import blur_pixmap,corner_path
+from image_editor import ImageEditDialog, export_edit, source_and_edit
+from image_panes import AvatarPane, PaneBackground
 from image_edit_library import ImageEditLibrary
 from popup_settings import PopupSettings
 from entry_fonts import font_choices, normalize_font
@@ -41,15 +43,11 @@ from time import monotonic
 from popup_clicks import PopupClicks
 
 import shiboken6
-from PySide6.QtCore import QEasingCurve, QEvent, QObject, QPoint, Property, QPropertyAnimation, QRect, Qt, QTimer, Signal, Slot, QUrl
-from PySide6.QtGui import QColor, QIcon, QImageReader, QMovie, QPainter, QPixmap, QRegion, QDesktopServices
+from PySide6.QtCore import QEvent, QObject, QPoint, QPropertyAnimation, QRect, Qt, QTimer, Slot, QUrl
+from PySide6.QtGui import QColor, QIcon, QImageReader, QPixmap, QRegion, QDesktopServices
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
-from PySide6.QtWidgets import (QApplication, QCheckBox, QColorDialog, QDialog, QFileDialog,
-    QComboBox, QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox,
-    QMenu, QPushButton, QSizeGrip, QGraphicsOpacityEffect, QSlider, QSpinBox, QSplitter,
-    QSizePolicy, QSystemTrayIcon, QTabWidget, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import QApplication, QColorDialog, QDialog, QFileDialog, QHBoxLayout, QInputDialog, QLabel, QMessageBox, QMenu, QPushButton, QSizeGrip, QGraphicsOpacityEffect, QSplitter, QSystemTrayIcon, QVBoxLayout, QWidget
 from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from yomitan_goldendict import Window as DictionaryManager, connect, render, search_entries, DB_PATH
@@ -195,6 +193,7 @@ def load_settings():
             'avatar_right': avatar_right,
             'avatar_enabled':bool(data.get('avatar_enabled',True)),
             'avatar_hidden':bool(data.get('avatar_hidden',False)),
+            'background_hidden':bool(data.get('background_hidden',False)),
             **{key:bool(data.get(key,False)) for key in ('avatar_fill_pane','avatar_mirror_x','avatar_mirror_y','avatar_auto_mirror_sides','avatar_auto_mirror_vertical','background_mirror_x','background_mirror_y','background_auto_mirror_sides','background_auto_mirror_vertical')},
             'avatar_top': avatar_top,
             'split_orientation': split_orientation,
@@ -212,7 +211,7 @@ def load_settings():
             **{key:max(0,min(40,int(data.get(key,0)))) for key in ('dictionary_image_blur','avatar_image_blur')},
             'dictionary_image_opacity':max(0,min(100,int(data.get('dictionary_image_opacity',100)))),
             **{key:max(0,min(120,int(data.get(key,23)))) for key in ('avatar_corner_radius','dictionary_corner_radius')},
-            **{key:data.get(key,'all') if data.get(key,'all') in ('all','top','bottom') else 'all' for key in ('avatar_corner_mode','dictionary_corner_mode')},
+            **{key:data.get(key,'all') if data.get(key,'all') in ('all','top','bottom','left','right','sides','none') else 'all' for key in ('avatar_corner_mode','dictionary_corner_mode')},
             **{'background_show_'+pane:bool(data.get('background_show_'+pane,True)) for pane in ('dictionary','popup','stats','translation','settings')},
             'search_as_you_type': True,
             'navbar_auto_hide': bool(data.get('navbar_auto_hide',False)),
@@ -247,349 +246,6 @@ def load_css():
         return STYLE_FILE.read_text(encoding='utf-8')
     except OSError:
         return ''
-
-
-class AvatarPane(QLabel):
-    image_geometry_changed = Signal()
-
-    def __init__(self, owner):
-        super().__init__()
-        self.owner = owner
-        self.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
-        self.setMinimumWidth(145)
-        self.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Ignored)
-        self.setStyleSheet('background: transparent;')
-        self.setMouseTracking(True)
-        self.original = QPixmap()
-        self._render_key=None;self._rendered_pixmap=QPixmap();self._rendered_rect=QRect()
-        self.movie = None
-        self._image_hovered = False
-        self.drag_offset = None
-        self._image_opacity = 1.0
-        self._opacity_target = 1.0
-        self.opacity_animation = QPropertyAnimation(self, b'imageOpacity', self)
-        self.previous_avatar = QPixmap()
-        self.previous_avatar_rect = QRect()
-        self._avatar_progress = 1.0
-        self.avatar_transition = QPropertyAnimation(self, b'avatarProgress', self)
-        self.avatar_transition.setEasingCurve(QEasingCurve.Type.InOutCubic)
-        self.avatar_transition.finished.connect(self.finish_avatar_transition)
-
-    def get_image_opacity(self):
-        return self._image_opacity
-
-    def set_image_opacity(self, value):
-        self._image_opacity = value
-        self.update()
-
-    imageOpacity = Property(float, get_image_opacity, set_image_opacity)
-
-    def fade_to(self, opacity, duration):
-        if self._opacity_target == opacity and self.opacity_animation.state() == QPropertyAnimation.State.Running:
-            return
-        if self._opacity_target == opacity and abs(self._image_opacity - opacity) < 0.001:
-            return
-        self._opacity_target = opacity
-        self.opacity_animation.stop()
-        self.opacity_animation.setStartValue(self._image_opacity)
-        self.opacity_animation.setEndValue(opacity)
-        self.opacity_animation.setDuration(duration)
-        self.opacity_animation.start()
-
-    def get_avatar_progress(self):
-        return self._avatar_progress
-
-    def set_avatar_progress(self, value):
-        self._avatar_progress = value
-        self.update()
-
-    avatarProgress = Property(float, get_avatar_progress, set_avatar_progress)
-
-    def finish_avatar_transition(self):
-        self.avatar_transition.stop()
-        self._avatar_progress = 1.0
-        self.previous_avatar = QPixmap()
-        self.previous_avatar_rect = QRect()
-        self.update()
-        self.image_geometry_changed.emit()
-
-    def clear_image(self):
-        self.avatar_transition.stop()
-        self.opacity_animation.stop()
-        if self.movie:self.movie.stop();self.movie.deleteLater();self.movie=None
-        self.original=QPixmap();self.setPixmap(QPixmap())
-        self._render_key=None;self._rendered_pixmap=QPixmap();self._rendered_rect=QRect()
-        self.previous_avatar=QPixmap();self.previous_avatar_rect=QRect();self._avatar_progress=1.0
-        self.update();self.image_geometry_changed.emit()
-
-    def set_image(self, path):
-        previous = QPixmap()
-        previous_rect = self.image_rect()
-        current = self.display_pixmap()
-        if (self.owner.settings.get('avatar_crossfade', False) and current and not current.isNull()
-                and self.isVisible() and self.width() > 0 and self.height() > 0):
-            previous = QPixmap(self.size())
-            previous.fill(Qt.GlobalColor.transparent)
-            painter = QPainter(previous)
-            self.paint_avatar(painter)
-            painter.end()
-        self.avatar_transition.stop()
-        self.previous_avatar = previous
-        self.previous_avatar_rect = previous_rect if not previous.isNull() else QRect()
-        self._avatar_progress = 0.0 if not previous.isNull() else 1.0
-        if self.movie:
-            self.movie.stop()
-            self.movie.deleteLater()
-            self.movie = None
-        if QImageReader(str(path)).supportsAnimation():
-            movie = QMovie(str(path), parent=self)
-            if movie.isValid():
-                self.original = QPixmap()
-                self.setPixmap(QPixmap())
-                self.movie = movie
-                self.movie.frameChanged.connect(lambda _frame: self.scale_image())
-                movie.start()
-                self.scale_image()
-                return
-            movie.deleteLater()
-        pixmap = QPixmap(path)
-        if not pixmap.isNull():
-            self.original = pixmap
-            self.scale_image()
-
-    def scale_image(self):
-        self._render_key=None
-        self.update()
-        # The faded window's mask also clips painting. Refresh it in the same
-        # turn as the pixmap/frame, rather than waiting for focus or a resize.
-        if not self.previous_avatar.isNull() and self.avatar_transition.state() != QPropertyAnimation.State.Running:
-            self.avatar_transition.setStartValue(self._avatar_progress)
-            self.avatar_transition.setEndValue(1.0)
-            self.avatar_transition.setDuration(min(self.owner.settings.get('avatar_fade_ms', 600),
-                                                 self.owner.settings.get('avatar_seconds', 30) * 1000))
-            self.avatar_transition.start()
-        self.image_geometry_changed.emit()
-
-    def display_pixmap(self):
-        pixmap=self.movie.currentPixmap() if self.movie else self.original
-        if not pixmap or pixmap.isNull() or self.size().isEmpty():return QPixmap()
-        settings=self.owner.settings
-        mirror_x=settings.get('avatar_mirror_x',False);mirror_y=settings.get('avatar_mirror_y',False)
-        rect=avatar_rect(pixmap.size(),self.size(),settings)
-        blur=settings.get('avatar_image_blur',0)
-        key=(pixmap.cacheKey(),rect.x(),rect.y(),rect.width(),rect.height(),mirror_x,mirror_y,blur)
-        if key!=self._render_key:
-            if mirror_x or mirror_y:pixmap=QPixmap.fromImage(pixmap.toImage().mirrored(mirror_x,mirror_y))
-            self._rendered_pixmap=pixmap.scaled(rect.size(),Qt.AspectRatioMode.IgnoreAspectRatio,Qt.TransformationMode.SmoothTransformation)
-            self._rendered_pixmap=blur_pixmap(self._rendered_pixmap,blur)
-            self._rendered_rect=rect;self._render_key=key
-        return self._rendered_pixmap
-
-    def paint_avatar(self, painter):
-        if not self.previous_avatar.isNull():
-            painter.save()
-            painter.setOpacity(painter.opacity() * (1.0 - self._avatar_progress))
-            painter.drawPixmap(0, 0, self.previous_avatar)
-            painter.restore()
-        pixmap = self.display_pixmap()
-        if pixmap and not pixmap.isNull():
-            painter.save()
-            painter.setOpacity(painter.opacity() * self._avatar_progress)
-            painter.drawPixmap(self.current_image_rect().topLeft(), pixmap)
-            painter.restore()
-
-    def paintEvent(self, event):
-        if self.owner.settings.get('avatar_hidden',False):return
-        pixmap = self.display_pixmap()
-        if self._image_opacity > 0:
-            painter = QPainter(self)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            painter.setClipPath(corner_path(self.rect(),self.owner.settings.get('avatar_corner_radius',23),self.owner.settings.get('avatar_corner_mode','all')))
-            painter.setOpacity(self._image_opacity)
-            background_opacity = self.owner.settings['avatar_background_opacity']
-            background_color=self.owner.settings.get('avatar_background_color','#000000')
-            if background_opacity and background_color:
-                tint = QColor(background_color)
-                tint.setAlphaF(background_opacity / 100)
-                painter.fillRect(self.rect(), tint)
-            self.paint_avatar(painter)
-
-    def image_rect(self):
-        if self.owner.settings.get('avatar_hidden',False):return QRect()
-        return self.current_image_rect().united(self.previous_avatar_rect).intersected(self.rect())
-
-    def current_image_rect(self):
-        pixmap = self.display_pixmap()
-        if not pixmap or pixmap.isNull():
-            return QRect()
-        return QRect(self._rendered_rect)
-
-    def update_image_hover(self, position):
-        hovered = self.image_rect().contains(position)
-        if hovered == self._image_hovered:
-            return
-        self._image_hovered = hovered
-        if self.owner.page_loaded:
-            self.owner.web.page().runJavaScript(f'avatarHover({str(hovered).lower()})')
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.finish_avatar_transition()
-        self.scale_image()
-
-    def begin_window_drag(self, global_position):
-        self.drag_offset = global_position.toPoint() - self.owner.pos()
-        handle = self.window().windowHandle()
-        if handle and handle.startSystemMove():
-            self.drag_offset = None
-
-    def tabletEvent(self, event):
-        # Handle the pen directly: mouse-event synthesis varies across Qt apps
-        # and Wayland, and may not preserve a usable window-move input serial.
-        if event.type() == QEvent.Type.TabletPress and event.button() == Qt.MouseButton.LeftButton:
-            self.begin_window_drag(event.globalPosition())
-        elif event.type() == QEvent.Type.TabletMove:
-            self.update_image_hover(event.position().toPoint())
-            if self.drag_offset is not None and event.buttons() & Qt.MouseButton.LeftButton:
-                self.owner.move(event.globalPosition().toPoint() - self.drag_offset)
-        elif event.type() == QEvent.Type.TabletRelease:
-            self.drag_offset = None
-        else:
-            event.ignore()
-            return
-        event.accept()
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.begin_window_drag(event.globalPosition())
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        self.update_image_hover(event.position().toPoint())
-        if self.drag_offset is not None and event.buttons() & Qt.MouseButton.LeftButton:
-            self.owner.move(event.globalPosition().toPoint() - self.drag_offset)
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        self.drag_offset = None
-        super().mouseReleaseEvent(event)
-
-    def enterEvent(self, event):
-        self.update_image_hover(event.position().toPoint())
-        super().enterEvent(event)
-
-    def leaveEvent(self, event):
-        self.update_image_hover(QPoint(-1, -1))
-        super().leaveEvent(event)
-
-
-class PaneBackground(QWidget):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.movie = None
-        self.image_path = None
-        self.pixmap = QPixmap()
-        self.darkness = 0
-        self.tint = QColor('#000000')
-        self.mirror_x=False;self.mirror_y=False
-        self.image_blur=0;self.image_opacity=100;self.corner_radius=23;self.corner_mode='all'
-        self.scaled_key = None
-        self.scaled_frame = QPixmap()
-        self.previous_frame = QPixmap()
-        self.previous_scaled = QPixmap()
-        self.previous_size = None
-        self.fade_progress = 1.0
-        self.transition = QPropertyAnimation(self, b'fadeProgress', self)
-        self.transition.setEasingCurve(QEasingCurve.Type.InOutCubic)
-        self.transition.finished.connect(self.finish_transition)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-
-    def get_fade_progress(self):
-        return self.fade_progress
-
-    def set_fade_progress(self, value):
-        self.fade_progress = value
-        self.update()
-
-    fadeProgress = Property(float, get_fade_progress, set_fade_progress)
-
-    def finish_transition(self):
-        self.transition.stop()
-        self.previous_frame = QPixmap()
-        self.previous_scaled = QPixmap()
-        self.previous_size = None
-        self.fade_progress = 1.0
-        self.update()
-
-    def set_image(self, path, crossfade=False, duration=600):
-        if path == self.image_path:
-            return
-        previous = self.movie.currentPixmap() if self.movie else self.pixmap
-        self.finish_transition()
-        self.image_path = path
-        if self.movie:
-            self.movie.stop()
-            self.movie.deleteLater()
-            self.movie = None
-        reader = QImageReader(path)
-        if reader.supportsAnimation():
-            self.movie = QMovie(path)
-            self.movie.frameChanged.connect(lambda *_: self.update())
-            self.movie.start()
-            if not self.isVisible():
-                self.movie.setPaused(True)
-        else:
-            self.pixmap = QPixmap(path)
-        current = self.movie.currentPixmap() if self.movie else self.pixmap
-        if crossfade and self.isVisible() and not previous.isNull() and not current.isNull():
-            self.previous_frame = previous
-            self.transition.setDuration(duration)
-            self.transition.setStartValue(0.0)
-            self.transition.setEndValue(1.0)
-            self.transition.start()
-        self.update()
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        if self.movie:
-            self.movie.setPaused(False)
-
-    def hideEvent(self, event):
-        super().hideEvent(event)
-        self.finish_transition()
-        if self.movie:
-            self.movie.setPaused(True)
-
-    def paintEvent(self, event):
-        pixmap = self.movie.currentPixmap() if self.movie else self.pixmap
-        if pixmap.isNull():
-            return
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setClipPath(corner_path(self.rect(),self.corner_radius,self.corner_mode))
-        if self.mirror_x or self.mirror_y:
-            painter.translate(self.width() if self.mirror_x else 0,self.height() if self.mirror_y else 0)
-            painter.scale(-1 if self.mirror_x else 1,-1 if self.mirror_y else 1)
-        if not self.previous_frame.isNull():
-            if self.previous_size != (self.size(),self.image_blur):
-                self.previous_scaled = self.previous_frame.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
-                self.previous_scaled=blur_pixmap(self.previous_scaled,self.image_blur)
-                self.previous_size = (self.size(),self.image_blur)
-            previous = self.previous_scaled
-            painter.setOpacity((1.0 - self.fade_progress)*self.image_opacity/100)
-            painter.drawPixmap((self.width()-previous.width())//2, (self.height()-previous.height())//2, previous)
-        painter.setOpacity(self.fade_progress*self.image_opacity/100)
-        key = (pixmap.cacheKey(), self.width(), self.height(),self.image_blur)
-        if key != self.scaled_key:
-            self.scaled_frame = pixmap.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
-            self.scaled_frame=blur_pixmap(self.scaled_frame,self.image_blur)
-            self.scaled_key = key
-        scaled = self.scaled_frame
-        painter.drawPixmap((self.width()-scaled.width())//2, (self.height()-scaled.height())//2, scaled)
-        painter.setOpacity(1.0)
-        tint=QColor(self.tint);tint.setAlpha(round(self.darkness * 2.55))
-        painter.fillRect(self.rect(),tint)
 
 
 class ResizeEdge(QWidget):
@@ -880,6 +536,18 @@ class Bridge(QObject):
         self.owner.settings['background_folder'] = ''
         self.owner.set_background('')
 
+    @Slot(str)
+    def remove_image(self, kind):
+        if kind == 'background':
+            self.remove_background()
+        elif kind == 'avatar':
+            self.owner.avatar_timer.stop()
+            self.owner.avatar_files=[]
+            self.owner.avatar_index=-1
+            self.owner.settings['avatar']=''
+            self.owner.settings['avatar_folder']=''
+            self.owner.update_preference('avatar_hidden',True)
+
     @Slot(bool)
     def choose_background(self, folder):
         if folder:
@@ -893,6 +561,7 @@ class Bridge(QObject):
                 self.owner.background_files = files
                 self.owner.order_background_files()
                 self.owner.background_index = -1
+                self.owner.settings['background_hidden']=False
                 self.owner.next_background()
                 self.owner.background_timer.start(self.owner.settings['background_seconds'] * 1000)
         else:
@@ -941,6 +610,22 @@ class Bridge(QObject):
     @Slot(str, int, int, bool)
     def kanji_lookup(self, character, x, y, from_popup):
         self.owner.open_character(character, x, y, from_popup)
+
+    @Slot(str,str,int,int)
+    def lookup_detail(self,kind,payload,pane,token):
+        try:data=json.loads(payload)
+        except ValueError:return
+        if kind != 'character' or not isinstance(data,dict):return
+        future=self.owner.grid_lookup_pool.submit(lookup_detail,self.owner.detail_database_path,kind,data)
+        self.owner.detail_jobs.append((pane,token,future));self.owner.detail_timer.start()
+
+    @Slot(str,str)
+    def detail_from_popup(self,kind,payload):
+        if kind != 'character':return
+        try:data=json.loads(payload)
+        except ValueError:return
+        self.owner.hide_hover_popup()
+        self.owner.web.page().runJavaScript('openLookupDetail(0,'+json.dumps(kind)+','+json.dumps(data)+')')
 
     @Slot()
     def popup_back(self):
@@ -1078,6 +763,9 @@ class FloatingDictionary(QWidget):
             CONFIG_DIR / 'yomitan-settings.json', Path.home()/'.local/share/floating-yomitan-browser/yomitan-options.json')
         self.popup_config.save()
         database_path=Path(self.db.execute('PRAGMA database_list').fetchone()[2])
+        self.detail_database_path=database_path
+        self.detail_jobs=[]
+        self.detail_timer=QTimer(self);self.detail_timer.setInterval(25);self.detail_timer.timeout.connect(self.poll_detail_jobs)
         self.character_worker=CharacterLookup(self,database_path)
         self.character_worker.ready.connect(self.show_character_results)
         QApplication.instance().aboutToQuit.connect(self.character_worker.shutdown)
@@ -1145,7 +833,7 @@ class FloatingDictionary(QWidget):
         if folder and folder.is_dir():
             self.background_files = self.media_catalog.files(folder)
             self.order_background_files()
-            if self.background_files:
+            if self.background_files and not self.settings.get('background_hidden',False):
                 self.background_timer.start(self.settings['background_seconds'] * 1000)
         self.page_loaded = False
         self.web.loadFinished.connect(self.page_ready)
@@ -1626,7 +1314,7 @@ class FloatingDictionary(QWidget):
         page_settings = {
             key: self.settings[key] for key in ('panel_opacity', 'panel_darkness', 'panel_color', 'text_color_mode', 'blur_px', 'auto_fade',
                 'fade_only_when_inactive',
-                'fade_delay_ms', 'fade_in_ms', 'fade_out_ms', 'search_as_you_type', 'navbar_auto_hide', 'lookup_split', 'lookup_ratio', 'avatar_enabled', 'avatar_hidden', 'font_headword', 'font_reading', 'font_definition', 'font_example', 'font_frequency', 'font_pitch', 'background_crossfade', 'background_fade_ms', 'background_seconds')}
+                'fade_delay_ms', 'fade_in_ms', 'fade_out_ms', 'search_as_you_type', 'navbar_auto_hide', 'lookup_split', 'lookup_ratio', 'avatar_enabled', 'avatar_hidden', 'background_hidden', 'font_headword', 'font_reading', 'font_definition', 'font_example', 'font_frequency', 'font_pitch', 'background_crossfade', 'background_fade_ms', 'background_seconds')}
         page_settings['background_url'] = self.background_url()
         page_settings.update({key:value for key,value in self.settings.items() if key.startswith(('avatar_auto_mirror_','background_auto_mirror_','background_mirror_')) or key=='avatar_fill_pane'})
         page_settings.update({key:self.settings[key] for key in ('dictionary_image_blur','dictionary_image_opacity','avatar_image_blur','avatar_background_color','avatar_corner_radius','avatar_corner_mode','dictionary_corner_radius','dictionary_corner_mode')})
@@ -1909,18 +1597,20 @@ class FloatingDictionary(QWidget):
     def popup_metadata_selection(self):
         return self.popup_config.metadata_selection()
 
+    def poll_detail_jobs(self):
+        pending=[]
+        for pane,token,future in self.detail_jobs:
+            if not future.done():pending.append((pane,token,future));continue
+            try:markup=future.result()
+            except Exception:markup='<p class="empty">Unable to load this entry.</p>'
+            self.web.page().runJavaScript('renderLookupDetail('+str(pane)+','+str(token)+','+json.dumps(markup)+')')
+        self.detail_jobs=pending
+        if not pending:self.detail_timer.stop()
+
     def open_character(self, character, x, y, from_popup=False):
         if not is_character(character):return
-        self.hover_worker.cancel()
-        self.character_worker.cancel()
-        if from_popup and self.hover_popup and self.hover_popup.isVisible():
-            self.popup_history.append((self.popup_markup,self.popup_title))
-        else:
-            self.popup_history=[]
-            self.hover_position=self.web.mapToGlobal(QPoint(x,y))
-        self.popup_requested=True
-        ids=self.popup_config.enabled_ids(self.scanner_dictionaries()) if from_popup else None
-        self.character_worker.submit(character,ids)
+        self.hide_hover_popup()
+        self.web.page().runJavaScript('openLookupDetail(0,"character",'+json.dumps({'character':character})+')')
 
     def show_character_results(self, character, markup, error):
         if not self.popup_requested:return
@@ -1935,8 +1625,10 @@ class FloatingDictionary(QWidget):
         pitches=self.selected_entry_metadata(entries)
         chunks=[]
         for term,reading,glossary,did,title in entries:
-            try:definition=render(json.loads(glossary))
-            except (ValueError,TypeError):continue
+            prepared = getattr(entries, 'definitions', {})
+            try: definition = prepared[glossary] if glossary in prepared else render_definition(glossary)
+            except (ValueError, TypeError): continue
+            if definition is None: continue
             chunks.append(f'<article><small>{html.escape(title)}</small><h2 data-headword="{html.escape(term,quote=True)}">{headword_markup(term)}</h2><div class="reading">{html.escape(reading)}</div>{pitches.get((term,reading), "")}<div class="definition">{definition}</div></article>')
         self.show_popup_markup(''.join(chunks),'Dictionary lookup')
 
@@ -2069,10 +1761,11 @@ class FloatingDictionary(QWidget):
                 if reading:
                     chunks.append(f'<div class="reading">{html.escape(reading)}</div>')
                 chunks.append(pitches.get((term, reading), ''))
-                try:
-                    chunks.append(f'<div class="definition">{render(json.loads(glossary))}</div>')
-                except (ValueError, TypeError):
-                    chunks.append('<div class="definition">Unable to display this entry.</div>')
+                prepared = getattr(entries, 'definitions', {})
+                try: definition = prepared[glossary] if glossary in prepared else render_definition(glossary)
+                except (ValueError, TypeError): definition = None
+                if definition is None: definition = 'Unable to display this entry.'
+                chunks.append(f'<div class="definition">{definition}</div>')
                 chunks.append('</article>')
             chunks.append('</details>')
             output = ''.join(chunks)
@@ -2106,6 +1799,7 @@ class FloatingDictionary(QWidget):
             random.shuffle(self.background_files)
 
     def next_background(self):
+        if self.settings.get('background_hidden',False):return
         if self.background_files:
             self.background_index = (self.background_index + 1) % len(self.background_files)
             if self.background_index == 0 and self.settings['background_order'] == 'random':
@@ -2122,6 +1816,7 @@ class FloatingDictionary(QWidget):
                 QTimer.singleShot(0, self.next_background)
 
     def background_url(self):
+        if self.settings.get('background_hidden',False):return ''
         path = Path(self.settings['background_image'])
         if not path.is_file():
             return ''
@@ -2130,6 +1825,7 @@ class FloatingDictionary(QWidget):
     def set_background(self, path):
         path=self.image_edits.resolve(path,'background')
         self.settings['background_image'] = path
+        if path:self.settings['background_hidden']=False
         if path and Path(path).is_file():
             self.settings['blur_px']=0
             self.apply_background_blur()
@@ -2236,7 +1932,7 @@ class FloatingDictionary(QWidget):
                 break
         finally:
             folder=self.settings['avatar_folder' if kind=='avatar' else 'background_folder']
-            if folder and (was_cycling or keep_folder) and not (kind=='avatar' and self.settings['avatar_hidden']):
+            if folder and (was_cycling or keep_folder) and not self.settings.get('avatar_hidden' if kind=='avatar' else 'background_hidden',False):
                 timer.start(self.settings['avatar_seconds' if kind=='avatar' else 'background_seconds']*1000)
             self.image_editor=None;editor.deleteLater();self.last_active=None;QTimer.singleShot(0,self.sync_focus)
 
@@ -2281,20 +1977,21 @@ class FloatingDictionary(QWidget):
         self.avatar.update()
 
     def update_preference(self, key, value,keep_folder=False):
-        allowed = {'avatar_crossfade', 'avatar_fade_ms', 'background_crossfade', 'background_fade_ms', 'background_order', 'background_seconds', 'avatar_folder', 'avatar_seconds', 'avatar_order', 'avatar', 'avatar_vertical_position', 'avatar_right', 'search_as_you_type', 'navbar_auto_hide', 'lookup_split', 'lookup_ratio', 'avatar_enabled', 'avatar_hidden', 'font_headword', 'font_reading', 'font_definition', 'font_example', 'font_frequency', 'font_pitch',
+        allowed = {'avatar_crossfade', 'avatar_fade_ms', 'background_crossfade', 'background_fade_ms', 'background_order', 'background_seconds', 'avatar_folder', 'avatar_seconds', 'avatar_order', 'avatar', 'avatar_vertical_position', 'avatar_right', 'search_as_you_type', 'navbar_auto_hide', 'lookup_split', 'lookup_ratio', 'avatar_enabled', 'avatar_hidden', 'background_hidden', 'font_headword', 'font_reading', 'font_definition', 'font_example', 'font_frequency', 'font_pitch',
             'blur_px', 'avatar_blur', 'panel_darkness', 'panel_color', 'text_color_mode', 'avatar_background_opacity',
             'auto_fade', 'fade_avatar', 'fade_delay_ms',
             'fade_in_ms', 'fade_out_ms'}
         allowed.update(('font_family','lookup_grid','lookup_column_weights','lookup_row_weights'))
         allowed.update(('avatar_fill_pane','avatar_auto_mirror_sides','avatar_auto_mirror_vertical','background_auto_mirror_sides','background_auto_mirror_vertical'))
         allowed.update(('dictionary_image_blur','dictionary_image_opacity','avatar_image_blur','avatar_background_color','avatar_corner_radius','dictionary_corner_radius','avatar_corner_mode','dictionary_corner_mode'))
+        allowed.add('background_hidden')
         allowed.update('background_show_'+pane for pane in ('dictionary','popup','stats','translation','settings'))
         if key not in allowed:
             return
         if key in ('dictionary_image_blur','avatar_image_blur'):value=max(0,min(40,int(value)))
         if key=='dictionary_image_opacity':value=max(0,min(100,int(value)))
         if key in ('avatar_corner_radius','dictionary_corner_radius'):value=max(0,min(120,int(value)))
-        if key in ('avatar_corner_mode','dictionary_corner_mode') and value not in ('all','top','bottom'):return
+        if key in ('avatar_corner_mode','dictionary_corner_mode') and value not in ('all','top','bottom','left','right','sides','none'):return
         if key=='avatar_background_color' and not re.fullmatch(r'(?:#[0-9a-fA-F]{6})?',str(value)):return
         if key == 'text_color_mode' and value not in ('automatic','black','white'):return
         if key == 'lookup_grid' and not valid_grid(value):return
@@ -2366,11 +2063,15 @@ class FloatingDictionary(QWidget):
             self.manager_background.finish_transition()
         if key in ('panel_darkness','panel_color') and getattr(self,'manager_background',None):
             self.update_manager_background_color()
+        if key == 'background_hidden':
+            if value:self.background_timer.stop()
+            elif self.background_files:self.background_timer.start(self.settings['background_seconds']*1000)
+            if getattr(self,'manager_background',None):self.manager_background.set_image('' if value else self.settings['background_image'])
         if key == 'background_order':
             self.order_background_files()
             self.background_index = -1
             self.next_background()
-        if key == 'background_seconds' and self.settings['background_folder']:
+        if key == 'background_seconds' and self.settings['background_folder'] and not self.settings.get('background_hidden',False):
             self.background_timer.start(value * 1000)
         if key in {'avatar_folder', 'avatar_order'}:
             self.configure_avatar_rotation()
@@ -2554,7 +2255,7 @@ class FloatingDictionary(QWidget):
             self.manager_background = PaneBackground(self.dictionary_overlay)
             self.manager_background.darkness = self.settings['panel_darkness']
             self.manager_background.tint = QColor(self.settings['panel_color'])
-            self.manager_background.set_image(self.settings['background_image'])
+            self.manager_background.set_image('' if self.settings.get('background_hidden',False) else self.settings['background_image'])
             self.manager_background.lower()
             layout = QVBoxLayout(self.dictionary_overlay)
             layout.setContentsMargins(18, 18, 18, 18)
@@ -2570,7 +2271,7 @@ class FloatingDictionary(QWidget):
             tab.show()
             # refresh_dictionaries updates this tab label, even while embedded.
             self.manager.tabs.insertTab(1, QWidget(), 'Dictionaries')
-        self.manager_background.set_image(self.settings['background_image'])
+        self.manager_background.set_image('' if self.settings.get('background_hidden',False) else self.settings['background_image'])
         self.update_manager_background_color()
         self.position_dictionary_overlay()
         self.web.page().runJavaScript("document.querySelector('.panel').classList.add('dictionary-manager-open')")

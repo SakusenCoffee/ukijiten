@@ -73,7 +73,8 @@ class StatsSettings:
             if (self.directory / 'reading-stats.sqlite3').exists() and paths:
                 import sqlite3
                 try:
-                    with sqlite3.connect(self.directory / 'reading-stats.sqlite3') as db:
+                    from contextlib import closing
+                    with closing(sqlite3.connect(self.directory / 'reading-stats.sqlite3')) as db:
                         decks = [row[0] for row in db.execute('SELECT deck FROM anki_deck_totals')]
                     self.values['anki']['decks'] = decks
                     self.values['anki']['enabled'] = bool(decks)

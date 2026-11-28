@@ -3,7 +3,7 @@ import json
 import sqlite3
 from time import monotonic
 from async_lookup import AsyncLookup, prepare_lookup
-from yomitan_goldendict import DB_PATH
+from async_lookup import DB_PATH
 
 
 def hover_lookup(payload, cancelled, path=DB_PATH, enabled_ids=None):
@@ -14,6 +14,7 @@ def hover_lookup(payload, cancelled, path=DB_PATH, enabled_ids=None):
     deadline=monotonic()+3
     try:
         db.set_progress_handler(lambda:cancelled.is_set() or monotonic()>deadline,2000)
+        db.execute('BEGIN')
         slots=','.join('?' for _ in terms)
         length={}
         for candidate in candidates:length[candidate['text']]=max(length.get(candidate['text'],0),candidate['length'])
@@ -31,19 +32,17 @@ def hover_lookup(payload, cancelled, path=DB_PATH, enabled_ids=None):
             ORDER BY source_length(e.term,e.reading) DESC,{order},d.id,e.rowid LIMIT 160""",(*terms,*terms,*(enabled_ids or []))).fetchall()
         best=max((max(length.get(r[1],0),length.get(r[2],0)) for r in rows),default=0)
         selected=[r for r in rows if max(length.get(r[1],0),length.get(r[2],0))==best][:40]
-        result=[]
-        for rid,term,reading,did,title in selected:
-            glossary=db.execute('SELECT glossary FROM entries WHERE rowid=?',(rid,)).fetchone()[0]
-            result.append((term,reading,glossary,did,title))
-        return result
+        if not selected:
+            return []
+        ids = [row[0] for row in selected]
+        definitions = dict(db.execute('SELECT rowid,glossary FROM entries WHERE rowid IN ('
+                                      + ','.join('?' for _ in ids) + ')', ids))
+        return [(term, reading, definitions[rid], did, title)
+                for rid, term, reading, did, title in selected]
     finally:db.close()
 
 
 class HoverLookup(AsyncLookup):
-    def __init__(self,parent):
-        super().__init__(parent)
-        self.poll.setInterval(8)
-
     def submit(self,query):
         from threading import Event
         self.cancel()
@@ -52,4 +51,4 @@ class HoverLookup(AsyncLookup):
         ids=self.enabled_ids_provider() if hasattr(self,'enabled_ids_provider') else None
         selection=self.metadata_selection_provider()
         self.pending=self.executor.submit(prepare_lookup,hover_lookup,query,self.cancelled,self.metadata_cache,selection,enabled_ids=ids)
-        self.poll.start()
+        self.watch()

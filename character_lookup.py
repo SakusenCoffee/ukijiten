@@ -8,7 +8,7 @@ from time import monotonic
 from urllib.parse import quote
 
 from async_lookup import AsyncLookup
-from yomitan_goldendict import render
+from dictionary_render import render
 
 
 def is_character(value):
@@ -117,4 +117,4 @@ class CharacterLookup(AsyncLookup):
         self.cancelled = Event()
         self.query = character
         self.pending = self.executor.submit(lookup_character, character, self.cancelled, self.path, enabled_ids)
-        self.poll.start()
+        self.watch()

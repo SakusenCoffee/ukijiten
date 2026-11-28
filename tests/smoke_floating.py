@@ -149,7 +149,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert js("document.querySelector('.search-history-sort').textContent")=='↓ Newest first'
         js("document.querySelector('.search-history-sort').click()")
         wait_until(lambda:js("document.querySelector('.search-history-sort').textContent==='↑ Oldest first'"))
-        js("[...document.querySelectorAll('.search-history-entry')].find(row=>row.textContent==='先生').click()")
+        js("[...document.querySelectorAll('.search-history-entry')].find(row=>row.querySelector('.search-history-headword').textContent==='先生').click()")
         wait_until(lambda:window.extra_queries[2]=='先生')
         assert not js("!!document.querySelector('.search-history-popup')")
         assert js("lookupCells.get(2).input.value")=='先生'
@@ -430,9 +430,12 @@ with tempfile.TemporaryDirectory() as directory:
         assert js("document.querySelector('[data-background-fade]').disabled")
         assert js("[...document.querySelectorAll('#inline-settings .settings-preview-group > .settings-section')].every(section=>!section.open)")
         assert not js("!!document.getElementById('image-pane-options')")
+        assert js("document.querySelectorAll('.image-picker-control').length")==4
+        js('applyLookupLayout();applyPreferences(motion)')
+        assert js("[...document.querySelectorAll('.image-picker-control')].every(group=>group.children.length===3&&group.querySelector('.image-visibility svg'))")
         assert js("[...document.querySelectorAll('.settings-preview-group')].every(group=>group.children[1].getBoundingClientRect().height>0)")
         # Image visibility follows each pane and its related settings pages.
-        assert js("document.querySelectorAll('.background-pane-options input').length")==5
+        assert js("document.querySelectorAll('.background-pane-options input:not(.settings-preview-ghost *)').length")==5
         js("document.getElementById('background-settings').open=true;document.querySelector('input[data-background-pane=settings]').click()")
         wait_until(lambda:window.settings['background_show_settings'] is False)
         wait_until(lambda:js("panel.dataset.backgroundPane==='settings'&&getComputedStyle(document.getElementById('pane-background')).visibility==='hidden'"))
@@ -450,7 +453,7 @@ with tempfile.TemporaryDirectory() as directory:
         window.update_preference('background_show_settings',True);window.open_settings()
         wait_until(lambda:js("panel.dataset.backgroundPane==='settings'&&!panel.classList.contains('background-image-disabled')"))
         assert all(floating.load_settings()['background_show_'+group] for group in ('dictionary','popup','stats','translation','settings'))
-        # Independent image blur, square corners and mutually exclusive corner sides.
+        # Independent image blur and edge pairs for selectively rounded corners.
         js("document.getElementById('avatar-settings').open=true;document.getElementById('background-settings').open=true")
         for key in ('avatar_image_blur','dictionary_image_blur'):
             js("(()=>{const input=document.querySelector('[data-setting="+key+"] input');input.value=8;input.dispatchEvent(new Event('input'));})()")
@@ -462,9 +465,16 @@ with tempfile.TemporaryDirectory() as directory:
         assert js("getComputedStyle(document.getElementById('pane-background')).filter")=='blur(8px) opacity(0.45)'
         js("const radius=document.querySelector('[aria-label=\"dictionary corner radius\"]');radius.value=0;radius.dispatchEvent(new Event('input'))")
         wait_until(lambda:js("getComputedStyle(panel).borderRadius")=='0px')
-        js("document.querySelector('[aria-label=\"dictionary round top only\"]').click();document.querySelector('[aria-label=\"dictionary round bottom only\"]').click()")
+        assert js("document.querySelector('[aria-label=\"dictionary round top\"]').getAttribute('aria-pressed')")=='true'
+        assert js("document.querySelector('[aria-label=\"dictionary round bottom\"]').getAttribute('aria-pressed')")=='true'
+        js("document.querySelector('[aria-label=\"dictionary round left\"]').click()")
+        wait_until(lambda:window.settings['dictionary_corner_mode']=='left')
+        assert js("document.querySelector('[aria-label=\"dictionary round top\"]').getAttribute('aria-pressed')")=='false'
+        js("document.querySelector('[aria-label=\"dictionary round right\"]').click()")
+        wait_until(lambda:window.settings['dictionary_corner_mode']=='sides')
+        js("document.querySelector('[aria-label=\"dictionary round bottom\"]').click()")
         wait_until(lambda:window.settings['dictionary_corner_mode']=='bottom')
-        assert not js("document.querySelector('[aria-label=\"dictionary round top only\"]').checked")
+        assert js("document.querySelector('[aria-label=\"dictionary round left\"]').getAttribute('aria-pressed')")=='false'
         assert js("[...document.querySelectorAll('.background-pane-options input,.pane-corner-controls input[type=checkbox]')].every(input=>getComputedStyle(input,'::after').content==='none')")
         assert js("(()=>{const clear=document.querySelector('.settings-clear-color').getBoundingClientRect(),color=document.querySelector('[data-setting=avatar_background_color] input').getBoundingClientRect();return clear.right<color.left&&Math.abs((clear.top+clear.bottom)-(color.top+color.bottom))<2;})()")
         js("document.querySelector('[aria-label=\"Make avatar background transparent\"]').click();document.querySelector('[data-setting=avatar_background_color] input').click()")
@@ -716,7 +726,7 @@ with tempfile.TemporaryDirectory() as directory:
         window.open_popup_settings()
         assert js("document.querySelector('#inline-settings h2').textContent")=='Popup settings'
         assert js("getComputedStyle(document.getElementById('inline-settings')).position")=='absolute'
-        assert js("getComputedStyle(document.querySelector('#inline-settings button')).backgroundColor")==js("getComputedStyle(document.documentElement).getPropertyValue('--settings-button-bg').trim().replaceAll(',', ', ')")
+        assert js("getComputedStyle(document.querySelector('#inline-settings button')).backgroundColor")=='rgba(0, 0, 0, 0)'
         assert not js("!!document.querySelector('[data-section=popup-dictionaries]')")
         window.web.grab().save('/tmp/native-popup-settings.png')
         assert js("getComputedStyle(document.getElementById('popup-dictionary-list')).display")!='none'
@@ -958,13 +968,13 @@ with tempfile.TemporaryDirectory() as directory:
         js("document.querySelector('.stats-top button').click()")
         js('closeSettings()');window.open_settings()
         avatar_before=window.settings['avatar']
-        assert not js("document.getElementById('remove-avatar-folder').hidden")
+        assert not js("document.getElementById('remove-avatar-folder').disabled")
         js("document.getElementById('remove-avatar-folder').click()")
         wait_until(lambda:window.settings['avatar_folder']=='')
         assert not window.avatar_timer.isActive()
         assert window.settings['avatar']==avatar_before
         assert Path(avatar_before).exists()
-        assert js("document.getElementById('remove-avatar-folder').hidden")
+        assert js("document.getElementById('remove-avatar-folder').disabled")
         assert window.settings['avatar_hidden'] and window.avatar.isVisible()
         assert window.avatar.movie is None and window.avatar.pixmap().isNull()
         assert window.avatar.image_rect().isEmpty()
@@ -1153,6 +1163,18 @@ with tempfile.TemporaryDirectory() as directory:
         wait_until(lambda:js("document.querySelectorAll('.entry .pitch-row .pitch-source').length>=2"))
         assert js("document.querySelector('.entry .frequency-value').textContent")=='84'
         assert js("(()=>{const rows=document.querySelector('.entry .pitch-row').children;return rows.length===2&&Math.abs(rows[0].getBoundingClientRect().y-rows[1].getBoundingClientRect().y)<2;})()")
+        assert js("""(()=>{
+          for(const selector of ['.frequency-row','.pitch-row']){
+            const row=document.querySelector('.entry '+selector),saved=row.style.cssText;
+            row.style.width='180px';
+            const children=[...row.children],style=getComputedStyle(row);
+            const wraps=children.some(child=>child.getBoundingClientRect().top>children[0].getBoundingClientRect().top+5);
+            const fits=row.scrollWidth<=row.clientWidth+1;
+            row.style.cssText=saved;
+            if(style.flexWrap!=='wrap'||!wraps||!fits)return false;
+          }
+          return true;
+        })()""")
         js('motion.auto_fade=false;setWindowActive(true);showPanel()')
         QTest.qWait(600);window.web.repaint();window.web.grab().save('/tmp/ukijiten-ordered-pitch-row.png')
         window.open_popup_settings()
@@ -1423,26 +1445,26 @@ with tempfile.TemporaryDirectory() as directory:
         js("closeSettings();query.value='先生';app.search(query.value)")
         wait_until(lambda:js("!!results.querySelector('h3 [data-character=先]')"))
         js("results.querySelector('h3 [data-character=先]').click()")
-        wait_until(lambda:window.character_worker.pending is None and window.popup_title=='Character lookup')
-        assert window.query=='先生' and 'precede' in window.popup_markup and '>25<' in window.popup_markup
+        wait_until(lambda:js("!!results.querySelector('.character-page')"))
+        assert window.query=='先生' and js("results.textContent.includes('precede') && results.textContent.includes('25')")
+        assert not window.hover_popup or not window.hover_popup.isVisible()
+        js("results.querySelector('.lookup-detail-back').click()")
+        assert js("!!results.querySelector('h3 [data-character=先]')") and window.query=='先生'
+        assert not js("!!results.querySelector('a[data-source-id]')")
+        window.show_hover_results('',[('先生','せんせい','["Teacher"]',1,'Word fixture')],'')
         wait_until(lambda:window.popup_ready and window.hover_popup.isVisible())
         def popup_js(code):
             value=[];window.hover_popup.page().runJavaScript(code,value.append)
             wait_until(lambda:bool(value));return value[0]
-        wait_until(lambda:popup_js("!!document.querySelector('.character-page')"))
-        assert popup_js("document.getElementById('popup-back').hidden")
-        window.show_hover_results('',[('先生','せんせい','["Teacher"]',1,'Word fixture')],'')
         wait_until(lambda:popup_js("!!document.querySelector('h2 [data-character=先]')"))
         popup_js("document.querySelector('h2 [data-character=先]').click()")
-        wait_until(lambda:window.character_worker.pending is None and len(window.popup_history)==1)
-        wait_until(lambda:popup_js("!!document.querySelector('.character-page')"))
-        assert not popup_js("document.getElementById('popup-back').hidden")
-        popup_js("document.getElementById('popup-back').click()")
-        wait_until(lambda:popup_js("!!document.querySelector('h2 [data-character=先]')"))
-        assert not window.popup_history and 'Teacher' in window.popup_markup
+        wait_until(lambda:js("!!results.querySelector('.character-page')"))
+        assert not window.hover_popup.isVisible()
+        js("results.querySelector('.lookup-detail-back').click()")
         window.bridge.kanji_lookup('𠮟',100,100,False)
-        wait_until(lambda:window.character_worker.pending is None and 'Supplementary hanzi' in window.popup_markup)
-        window.hide_hover_popup()
+        wait_until(lambda:js("results.textContent.includes('Supplementary hanzi')"))
+        js("results.querySelector('.lookup-detail-back').click()")
+        assert js("!!results.querySelector('h3 [data-character=先]')")
 
         window.open_manager()
         wait_until(lambda:js("document.querySelectorAll('[data-character-source]').length") == 2)
@@ -1458,6 +1480,29 @@ with tempfile.TemporaryDirectory() as directory:
         wait_until(lambda:js("!!document.querySelector('[data-section]')"))
         assert not js("!!document.getElementById('game-library-button')")
         assert not js("!!document.querySelector('[data-setting=game_launcher_enabled]')")
+        # Image controls hide without deleting sources; removal clears them without merging panes.
+        window.set_background(str(gif));window.open_settings()
+        wait_until(lambda:js("!!document.getElementById('background-image-toggle')"))
+        saved_background=window.settings['background_image']
+        js("document.getElementById('background-image-toggle').click()")
+        wait_until(lambda:window.settings['background_hidden'])
+        assert window.settings['background_image']==saved_background and window.background_url()==''
+        assert floating.load_settings()['background_hidden']
+        assert js("panel.classList.contains('background-image-disabled')")
+        js("document.getElementById('background-image-toggle').click()")
+        wait_until(lambda:not window.settings['background_hidden'])
+        assert window.background_url()
+        saved_color=window.settings['panel_color']
+        js("document.getElementById('remove-background-image').click()")
+        wait_until(lambda:window.settings['background_image']=='')
+        assert window.settings['background_folder']=='' and window.settings['panel_color']==saved_color
+        window.update_preference('avatar',str(gif));window.update_preference('avatar_enabled',True)
+        old_sizes=window.splitter.sizes()
+        js("document.getElementById('remove-avatar-image').click()")
+        wait_until(lambda:window.settings['avatar']=='')
+        assert window.settings['avatar_folder']=='' and window.settings['avatar_hidden']
+        assert window.settings['avatar_enabled'] and window.avatar.isVisible()
+        assert window.splitter.sizes()==old_sizes
         print('Floating UI smoke passed, including statistics, dictionary and settings.')
     finally:
         window.anki_stats_feed.close()

@@ -8,18 +8,52 @@ function makeSettingsSection(title,key){
   const summary=document.createElement('summary');summary.textContent=title;section.append(summary);
   rememberSection(section,key);return section;
 }
-function folderPickerControl(choose,remove){
-  const group=document.createElement('div');group.className='folder-picker-control';group.append(choose,remove);return group;
+function folderPickerControl(choose,remove,kind,values){
+  const group=imagePickerControl(choose,kind,values);group.classList.add('folder-picker-control');group.dataset.folderPicker='true';
+  group.querySelector('.image-visibility').id=kind+'-folder-toggle';
+  remove.hidden=false;remove.classList.add('image-remove');group.querySelector('.image-remove').replaceWith(remove);
+  updateImagePicker(group,values);return group;
+}
+const imageEyeIcon='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m3 3 18 18"/></svg>';
+function updateImagePicker(group,values){
+  const kind=group.dataset.imageKind,key=kind==='avatar'?'avatar':'background_image',hidden=!!values[kind+'_hidden'];
+  const eye=group.querySelector('.image-visibility');eye.setAttribute('aria-pressed',String(!hidden));eye.classList.toggle('image-hidden',hidden);eye.title=(hidden?'Show ':'Hide ')+kind+' image';eye.setAttribute('aria-label',eye.title);
+  eye.disabled=!values[key];group.querySelector('.image-remove').disabled=!(group.dataset.folderPicker?values[kind+'_folder']:values[key]);
+}
+function imagePickerControl(choose,kind,values){
+  const group=document.createElement('div');group.className='image-picker-control';group.dataset.imageKind=kind;
+  const eye=document.createElement('button');eye.type='button';eye.className='image-visibility';eye.id=kind==='avatar'?'avatar-image-toggle':'background-image-toggle';eye.innerHTML=imageEyeIcon;
+  eye.onclick=()=>{const key=kind+'_hidden';motion[key]=!motion[key];values[key]=motion[key];updateImagePicker(group,values);app.preference(key,JSON.stringify(motion[key]));};
+  const remove=document.createElement('button');remove.type='button';remove.className='image-remove';remove.id='remove-'+kind+'-image';remove.textContent='×';remove.title='Remove '+kind+' image';remove.setAttribute('aria-label',remove.title);remove.onclick=()=>app.remove_image(kind);
+  group.append(choose,eye,remove);updateImagePicker(group,values);return group;
 }
 function previewSettingsSection(section){
-  const summary=section.querySelector(':scope > summary'),first=summary.nextElementSibling;
+  const summary=section.querySelector(':scope > summary'),first=summary.nextElementSibling,title=summary.textContent;
   if(!first)return;
   const group=document.createElement('section');group.className='settings-preview-group';
   const heading=document.createElement('button');heading.type='button';heading.className='settings-preview-heading';heading.textContent=summary.textContent;
-  heading.onclick=()=>{section.open=!section.open;};
-  summary.textContent='';summary.setAttribute('aria-label','Expand or collapse '+heading.textContent);
-  section.before(group);group.append(heading,first,section);
-  const sync=()=>{heading.setAttribute('aria-expanded',String(section.open));group.classList.toggle('expanded',section.open);};
+  heading.onclick=toggleExpanded;
+  summary.replaceChildren();summary.setAttribute('aria-label','Expand '+title);
+  const footer=document.createElement('button');footer.type='button';footer.className='settings-preview-footer';footer.onclick=toggleExpanded;
+  section.before(group);
+  const corners=section.querySelector('.pane-corner-controls');
+  if(corners){
+    const tools=document.createElement('div');tools.className='settings-source-buttons settings-image-tools';
+    const crop=section.querySelector('#edit-avatar-image,#edit-background-image');
+    if(crop)tools.append(crop);tools.append(corners);
+    group.append(heading,first,tools,section,footer);
+  }else group.append(heading,first,section,footer);
+  const sync=()=>{for(const button of [heading,footer]){button.setAttribute('aria-expanded',String(section.open));button.setAttribute('aria-label',(section.open?'Collapse ':'Expand ')+title);}footer.textContent='Collapse';footer.hidden=!section.open;group.classList.toggle('expanded',section.open);};
+  let animation;
+  function toggleExpanded(){
+    const before=group.getBoundingClientRect().height;
+    animation?.cancel();section.open=!section.open;sync();
+    const after=group.getBoundingClientRect().height;
+    if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+      animation=group.animate([{height:before+'px'},{height:after+'px'}],{duration:210,easing:'cubic-bezier(.2,.7,.2,1)'});
+    }
+  }
+  summary.onclick=event=>{event.preventDefault();toggleExpanded();};
   section.addEventListener('toggle',sync);sync();
 }
 function collapseSettingsSections(area,prefix){

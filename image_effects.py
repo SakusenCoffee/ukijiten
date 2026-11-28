@@ -17,8 +17,10 @@ def blur_pixmap(pixmap,radius):
 def corner_path(rect,radius,mode='all'):
     bounds=QRectF(rect);path=QPainterPath();path.setFillRule(Qt.FillRule.WindingFill)
     radius=max(0,min(radius,bounds.width()/2,bounds.height()/2))
-    if not radius:path.addRect(bounds);return path
+    if not radius or mode=='none':path.addRect(bounds);return path
     path.addRoundedRect(bounds,radius,radius)
     if mode=='top':path.addRect(QRectF(bounds.left(),bounds.center().y(),bounds.width(),bounds.height()/2))
     elif mode=='bottom':path.addRect(QRectF(bounds.left(),bounds.top(),bounds.width(),bounds.height()/2))
+    elif mode=='left':path.addRect(QRectF(bounds.center().x(),bounds.top(),bounds.width()/2,bounds.height()))
+    elif mode=='right':path.addRect(QRectF(bounds.left(),bounds.top(),bounds.width()/2,bounds.height()))
     return path

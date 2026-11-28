@@ -1,6 +1,7 @@
 """Read review time from Anki collection snapshots without opening them in Anki."""
 from datetime import datetime
 from pathlib import Path
+from contextlib import closing
 import sqlite3
 import hashlib
 import json
@@ -104,7 +105,7 @@ def available_decks(config):
         return sorted(anki_request(config, 'deckNames'))
     names = set()
     for source in config['paths']:
-        with sqlite3.connect(Path(source).expanduser().resolve().as_uri() + '?mode=ro', uri=True) as db:
+        with closing(sqlite3.connect(Path(source).expanduser().resolve().as_uri() + '?mode=ro', uri=True)) as db:
             names.update(name.replace('\x1f', '::') for (name,) in db.execute('SELECT name FROM decks'))
     return sorted(names)
 

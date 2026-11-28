@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """A fast desktop reader for Yomitan dictionary ZIP archives."""
 import html
-from itertools import islice, product
 import json
 import os
 from pathlib import Path
 import re
-import sqlite3
 import sys
 from urllib.parse import parse_qs
 import zipfile
@@ -18,153 +16,14 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QHB
     QMessageBox, QPushButton, QSplitter, QTabWidget, QTextBrowser, QTreeWidget,
     QTreeWidgetItem, QVBoxLayout, QWidget, QStyledItemDelegate, QStyleOptionViewItem, QStyle)
 
-APP_DIR = Path.home() / '.local/share/yomitan-goldendict'
-DB_PATH = APP_DIR / 'dictionaries.sqlite3'
+from dictionary_search import romaji_to_hiragana, romaji_to_hiragana_variants, search_patterns, search_entries
+from dictionary_render import render
+
+from dictionary_database import APP_DIR, DB_PATH, connect_database
 COLLECTION = Path(os.environ.get('UKIJITEN_DICTIONARIES',Path.home()/'Documents/Dictionaries'))
 
-ROMAJI = dict(zip(
-    ('a i u e o ka ki ku ke ko sa shi su se so ta chi tsu te to '
-     'na ni nu ne no ha hi fu he ho ma mi mu me mo ya yu yo '
-     'ra ri ru re ro wa wo ga gi gu ge go za ji zu ze zo '
-     'da di du de do ba bi bu be bo pa pi pu pe po').split(),
-    ('あ い う え お か き く け こ さ し す せ そ た ち つ て と '
-     'な に ぬ ね の は ひ ふ へ ほ ま み む め も や ゆ よ '
-     'ら り る れ ろ わ を が ぎ ぐ げ ご ざ じ ず ぜ ぞ '
-     'だ ぢ づ で ど ば び ぶ べ ぼ ぱ ぴ ぷ ぺ ぽ').split()))
-ROMAJI.update({'si':'し','ti':'ち','tu':'つ','hu':'ふ','zi':'じ','di':'じ','du':'ず',
-               'ja':'じゃ','ju':'じゅ','jo':'じょ','sha':'しゃ','shu':'しゅ','sho':'しょ',
-               'cha':'ちゃ','chu':'ちゅ','cho':'ちょ','she':'しぇ','che':'ちぇ','je':'じぇ',
-               'tsa':'つぁ','tsi':'つぃ','tse':'つぇ','tso':'つぉ',
-               'fa':'ふぁ','fi':'ふぃ','fe':'ふぇ','fo':'ふぉ',
-               'va':'ゔぁ','vi':'ゔぃ','vu':'ゔ','ve':'ゔぇ','vo':'ゔぉ',
-               'ye':'いぇ','wi':'うぃ','we':'うぇ','wu':'う',
-               'ca':'か','ci':'し','cu':'く','ce':'せ','co':'こ','qu':'く',
-               'xtu':'っ','xtsu':'っ','ltu':'っ','ltsu':'っ','xn':'ん',
-               'tha':'てゃ','thi':'てぃ','thu':'てゅ','the':'てぇ','tho':'てょ',
-               'dha':'でゃ','dhi':'でぃ','dhu':'でゅ','dhe':'でぇ','dho':'でょ',
-               'twa':'とぁ','twi':'とぃ','twu':'とぅ','twe':'とぇ','two':'とぉ',
-               'dwa':'どぁ','dwi':'どぃ','dwu':'どぅ','dwe':'どぇ','dwo':'どぉ',
-               'qa':'くぁ','qi':'くぃ','qe':'くぇ','qo':'くぉ',
-               'kwa':'くぁ','kwi':'くぃ','kwu':'くぅ','kwe':'くぇ','kwo':'くぉ',
-               'gwa':'ぐぁ','gwi':'ぐぃ','gwu':'ぐぅ','gwe':'ぐぇ','gwo':'ぐぉ',
-               'hwa':'ふぁ','hwi':'ふぃ','hwe':'ふぇ','hwo':'ふぉ',
-               'whi':'うぃ','whu':'う','whe':'うぇ','who':'うぉ',
-               'fya':'ふゃ','fyu':'ふゅ','fyo':'ふょ',
-               'vya':'ゔゃ','vyu':'ゔゅ','vyo':'ゔょ'})
-for stem, kana in {'ky':'き','sy':'し','shy':'し','ty':'ち','chy':'ち',
-                   'ny':'に','hy':'ひ','my':'み','ry':'り','gy':'ぎ',
-                   'zy':'じ','jy':'じ','j':'じ','by':'び','py':'ぴ','dy':'ぢ','cy':'ち'}.items():
-    for vowel, small in {'a':'ゃ','u':'ゅ','o':'ょ'}.items():
-        ROMAJI[stem + vowel] = kana + small
-for prefix in ('x', 'l'):
-    ROMAJI.update({prefix + k: v for k, v in {
-        'a':'ぁ','i':'ぃ','u':'ぅ','e':'ぇ','o':'ぉ',
-        'ya':'ゃ','yu':'ゅ','yo':'ょ','wa':'ゎ'}.items()})
-for stem, kana in {'ky':'き','sy':'し','ty':'ち','ny':'に','hy':'ひ','my':'み',
-                   'ry':'り','gy':'ぎ','zy':'じ','jy':'じ','by':'び','py':'ぴ',
-                   'dy':'ぢ','cy':'ち'}.items():
-    ROMAJI[stem + 'e'] = kana + 'ぇ'
-
-AMBIGUOUS_ROMAJI = {'du': ('ず', 'づ'), 'di': ('じ', 'ぢ'),
-                    'zi': ('じ', 'ぢ'), 'ji': ('じ', 'ぢ')}
-LONG_VOWELS = {'ā': ('aa',), 'â': ('aa',), 'ī': ('ii',), 'î': ('ii',),
-               'ū': ('uu',), 'û': ('uu',), 'ē': ('ee',), 'ê': ('ee',),
-               'ō': ('ou', 'oo'), 'ô': ('ou', 'oo')}
-
-
-def romaji_to_hiragana_variants(word):
-    """Return distinct kana lookup keys for complete romaji."""
-    word = word.lower()
-    if not re.fullmatch(r"[a-z'āīūēōâîûêô]+", word):
-        return ()
-    spellings = ['']
-    for char in word:
-        spellings = [prefix + expansion for prefix in spellings
-                     for expansion in LONG_VOWELS.get(char, (char,))][:16]
-    results = []
-    for spelling in spellings:
-        results.extend(_ascii_romaji_variants(spelling))
-    return tuple(dict.fromkeys(results))[:16]
-
-
-def _ascii_romaji_variants(word):
-    parts = []
-    i = 0
-    while i < len(word):
-        char = word[i]
-        following = word[i + 1] if i + 1 < len(word) else ''
-        if char == 'm' and following in 'bp':
-            parts.append(('ん',))
-            i += 1
-            continue
-        if char == 'n':
-            if following == "'":
-                parts.append(('ん',))
-                i += 2
-                continue
-            if following == 'n' and i + 2 == len(word):
-                parts.append(('ん',))
-                i += 2
-                continue
-            if not following or (following not in 'aeiouy' and following != 'n') or following == 'n':
-                parts.append(('ん',))
-                i += 1
-                continue
-        if char == following and char not in 'aeioun':
-            parts.append(('っ',))
-            i += 1
-            continue
-        if word[i:i + 3] == 'tch':
-            parts.append(('っ',))
-            i += 1
-            continue
-        size = next((size for size in (4, 3, 2, 1) if word[i:i + size] in ROMAJI), None)
-        if size is None:
-            return ()
-        syllable = word[i:i + size]
-        parts.append(AMBIGUOUS_ROMAJI.get(syllable, (ROMAJI[syllable],)))
-        i += size
-    return tuple(dict.fromkeys(''.join(pieces) for pieces in islice(product(*parts), 16)))
-
-
-def romaji_to_hiragana(word):
-    variants = romaji_to_hiragana_variants(word)
-    return variants[0] if variants else None
-
-
 def connect():
-    APP_DIR.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(DB_PATH, timeout=30)
-    db.execute('PRAGMA journal_mode=WAL')
-    db.execute('CREATE TABLE IF NOT EXISTS dictionaries (id INTEGER PRIMARY KEY, path TEXT UNIQUE, title TEXT, stamp TEXT, count INTEGER)')
-    db.execute('CREATE TABLE IF NOT EXISTS entries (dictionary_id INTEGER, term TEXT, reading TEXT, glossary TEXT)')
-    columns = {row[1] for row in db.execute('PRAGMA table_info(dictionaries)')}
-    if 'enabled' not in columns:
-        db.execute('ALTER TABLE dictionaries ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1')
-    if 'sort_order' not in columns:
-        db.execute('ALTER TABLE dictionaries ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0')
-        db.execute('UPDATE dictionaries SET sort_order=id')
-    db.execute('CREATE TABLE IF NOT EXISTS term_metadata (dictionary_id INTEGER,term TEXT,mode TEXT,data TEXT)')
-    db.execute('CREATE INDEX IF NOT EXISTS term_metadata_lookup ON term_metadata(term,dictionary_id,mode)')
-    for column in ('has_frequency','has_pitch'):
-        if column not in columns:db.execute(f'ALTER TABLE dictionaries ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0')
-    for column in ('has_kanji','has_kanji_frequency'):
-        if column not in columns:db.execute(f'ALTER TABLE dictionaries ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0')
-    db.execute('CREATE TABLE IF NOT EXISTS kanji_entries (dictionary_id INTEGER,character TEXT,onyomi TEXT,kunyomi TEXT,tags TEXT,meanings TEXT,stats TEXT)')
-    db.execute('CREATE INDEX IF NOT EXISTS kanji_entries_lookup ON kanji_entries(character,dictionary_id)')
-    db.execute('CREATE TABLE IF NOT EXISTS kanji_metadata (dictionary_id INTEGER,character TEXT,mode TEXT,data TEXT)')
-    db.execute('CREATE INDEX IF NOT EXISTS kanji_metadata_lookup ON kanji_metadata(character,dictionary_id,mode)')
-    db.execute('CREATE TABLE IF NOT EXISTS dictionary_tags (dictionary_id INTEGER,name TEXT,notes TEXT)')
-    db.execute('CREATE INDEX IF NOT EXISTS dictionary_tags_lookup ON dictionary_tags(dictionary_id,name)')
-    db.execute("UPDATE dictionaries SET has_pitch=1 WHERE lower(title) LIKE '%nhk%' AND has_pitch=0")
-    db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)')
-    if db.execute('SELECT 1 FROM dictionaries LIMIT 1').fetchone():
-        db.execute("INSERT OR IGNORE INTO settings VALUES('initialized','1')")
-    db.execute('CREATE INDEX IF NOT EXISTS entries_term ON entries(term)')
-    db.execute('CREATE INDEX IF NOT EXISTS entries_reading ON entries(reading)')
-    db.execute('CREATE INDEX IF NOT EXISTS entries_dictionary ON entries(dictionary_id)')
-    db.commit()
-    return db
+    return connect_database(DB_PATH)
 
 
 def archive_info(path):
@@ -258,100 +117,6 @@ class Importer(QObject):
         if errors:
             result += ' Errors: ' + '; '.join(errors[:3])
         self.finished.emit(result)
-
-
-def render(node):
-    if isinstance(node, str):
-        return html.escape(node).replace('\n', '<br>')
-    if isinstance(node, list):
-        return ''.join(render(item) for item in node)
-    if not isinstance(node, dict):
-        return html.escape(str(node))
-    if node.get('type') == 'structured-content':
-        return render(node.get('content', ''))
-    if node.get('type') == 'image':
-        return '<span class="media">[image: ' + html.escape(str(node.get('path', ''))) + ']</span>'
-    if node.get('type') in ('audio', 'pronunciation'):
-        return '<span class="media">[audio]</span>'
-    tag = node.get('tag', 'span')
-    if tag not in {'div','span','p','br','b','strong','i','em','ul','ol','li','ruby','rt','rp','table','thead','tbody','tr','td','th','a','sup','sub','small','blockquote'}:
-        tag = 'span'
-    if tag == 'br':
-        return '<br>'
-    styles = node.get('style', {})
-    safe = []
-    if isinstance(styles, dict):
-        for key, val in styles.items():
-            if key in {'fontWeight','fontStyle','textDecoration','color','backgroundColor','fontSize','textAlign'} and re.fullmatch(r'[\w#().,%\s-]{1,60}', str(val)):
-                css_key = re.sub(r'([A-Z])', lambda m: '-' + m[1].lower(), key)
-                safe.append(f'{css_key}:{val}')
-    attrs = ' style="' + ';'.join(safe) + '"' if safe else ''
-    data=node.get('data',{})
-    if isinstance(data,dict) and any('example' in str(key).lower() or 'example' in str(value).lower() for key,value in data.items()):attrs+=' class="example-sentence"'
-    if tag == 'a':
-        href = node.get('href', '')
-        if isinstance(href, str) and href.startswith('?query='):
-            attrs += ' href="' + html.escape(href, quote=True) + '"'
-    return f'<{tag}{attrs}>' + render(node.get('content', '')) + f'</{tag}>'
-
-
-def search_patterns(query):
-    """Literal prefix by default; explicit * and ? use whole-word glob matching.
-
-    Backslash quotes the next character. Square brackets are always literal.
-    Romaji conversion applies to each literal part around wildcards.
-    """
-    parts, literal, wildcard = [], '', False
-    def flush():
-        nonlocal literal
-        if literal:
-            variants = romaji_to_hiragana_variants(literal) or (literal,)
-            parts.append([(v, False) for v in variants])
-            literal = ''
-    i = 0
-    while i < len(query):
-        char = query[i]
-        if char == '\\' and i + 1 < len(query):
-            i += 1
-            literal += query[i]
-        elif char in '*?':
-            flush()
-            parts.append([(char, True)])
-            wildcard = True
-        else:
-            literal += char
-        i += 1
-    flush()
-    combinations = list(islice(product(*parts), 32))
-    def escape(value):
-        return ''.join({'[': '[[]', '*': '[*]', '?': '[?]'}.get(c, c) for c in value)
-    patterns = tuple(dict.fromkeys(''.join(value if special else escape(value)
-        for value, special in combo) + ('' if wildcard else '*') for combo in combinations))
-    exact = tuple(''.join(value for value, special in combo) for combo in combinations) if not wildcard else (query,)
-    return exact, patterns
-
-
-def search_entries(db, query):
-    """Indexed candidate lookup; rank metadata before loading large definitions."""
-    query = query.strip()
-    if not query:
-        return []
-    variants, patterns = search_patterns(query)
-    slots = ','.join('?' for _ in variants)
-    rank = f'CASE WHEN e.term IN ({slots}) THEN 0 WHEN e.reading IN ({slots}) THEN 1 ELSE 2 END'
-    candidates = ' UNION '.join(f'SELECT rowid FROM entries WHERE {column} GLOB ?'
-        for column in ('term', 'reading') for _ in patterns)
-    return db.execute(f"""WITH candidates AS ({candidates}), ranked AS (
-        SELECT e.rowid AS entry_id,e.term,e.reading,d.id,d.title,d.sort_order,
-          {rank} AS match_rank,
-          row_number() OVER (PARTITION BY d.id ORDER BY
-            {rank},length(e.term),e.term,e.reading,e.rowid) AS entry_number
-        FROM candidates c JOIN entries e ON e.rowid=c.rowid
-        JOIN dictionaries d ON d.id=e.dictionary_id WHERE d.enabled=1)
-        SELECT r.term,r.reading,e.glossary,r.id,r.title FROM ranked r
-        JOIN entries e ON e.rowid=r.entry_id WHERE r.entry_number<=40
-        ORDER BY r.sort_order,r.id,r.match_rank,length(r.term),r.term,r.reading,r.entry_id""",
-        (*patterns, *patterns, *variants, *variants, *variants, *variants)).fetchall()
 
 
 class ResultTree(QTreeWidget):

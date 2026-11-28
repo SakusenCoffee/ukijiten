@@ -35,6 +35,15 @@ class ImageEditorTests(unittest.TestCase):
         self.assertTrue(corner_path(rect,20,'top').contains(bottom))
         self.assertTrue(corner_path(rect,20,'bottom').contains(top))
         self.assertFalse(corner_path(rect,20,'bottom').contains(bottom))
+        right=QPointF(99.9,.1)
+        self.assertFalse(corner_path(rect,20,'left').contains(top))
+        self.assertTrue(corner_path(rect,20,'left').contains(right))
+        self.assertTrue(corner_path(rect,20,'right').contains(top))
+        self.assertFalse(corner_path(rect,20,'right').contains(right))
+        self.assertFalse(corner_path(rect,20,'sides').contains(top))
+        self.assertFalse(corner_path(rect,20,'sides').contains(right))
+        self.assertTrue(corner_path(rect,20,'none').contains(top))
+        self.assertTrue(corner_path(rect,20,'none').contains(right))
 
     def setUp(self):
         self.directory=tempfile.TemporaryDirectory();self.addCleanup(self.directory.cleanup)

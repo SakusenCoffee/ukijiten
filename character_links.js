@@ -5,6 +5,8 @@ function bindCharacterLinks(root, fromPopup=false) {
     const selection=window.getSelection();
     if(selection.toString()&&selection.containsNode(link,true))return;
     event.preventDefault();event.stopPropagation();
-    app.kanji_lookup(link.dataset.character,Math.round(event.clientX),Math.round(event.clientY),fromPopup);
+    const kind='character',data={character:link.dataset.character};
+    if(fromPopup)app.detail_from_popup(kind,JSON.stringify(data));
+    else openLookupDetail(Number(link.closest('[data-lookup-id]')?.dataset.lookupId||0),kind,data);
   });
 }

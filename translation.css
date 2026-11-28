@@ -26,3 +26,7 @@
 .translation-editor button { color:#adb5c8!important; }
 .translation-actions [hidden] { display:none!important; }
 .translation-pane button:disabled { opacity:.55;cursor:default; }
+
+#inline-settings :is(.translation-field,.translation-editor) select { background:transparent!important;color:var(--text)!important;border-color:color-mix(in srgb,var(--text) 18%,transparent);border-radius:5px;padding:4px 7px;min-height:30px; }
+.translation-connection { max-width:640px; }
+.translation-field { max-width:480px; }

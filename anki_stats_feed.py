@@ -8,7 +8,8 @@ def json_fingerprint(config):
     return json.dumps(config, sort_keys=True)
 from PySide6.QtCore import QObject, QTimer
 from reading_stats import ReadingStats
-from anki_stats import import_review_time, refresh_anki
+from anki_stats import import_review_time
+from anki_change_monitor import AnkiRefresh
 import copy
 
 
@@ -23,6 +24,7 @@ class AnkiStatsFeed(QObject):
         self.fingerprint = None
         self.pending_fingerprint = None
         self.closed = False
+        self.refresh_cache = AnkiRefresh()
         self.timer = QTimer(self);self.timer.setInterval(30000);self.timer.timeout.connect(self.update);self.timer.start()
         self.poll = QTimer(self);self.poll.setInterval(100);self.poll.timeout.connect(self.finish)
         QTimer.singleShot(0,self.update)
@@ -52,7 +54,7 @@ class AnkiStatsFeed(QObject):
         def work():
             store=ReadingStats(self.database)
             try:
-                return refresh_anki(store, config) if config else import_review_time(store,self.paths)
+                return self.refresh_cache.run(store, config) if config else import_review_time(store,self.paths)
             finally:
                 store.db.close()
         self.future=self.executor.submit(work)

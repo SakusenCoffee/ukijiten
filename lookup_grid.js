@@ -4,10 +4,35 @@ const secondaryResults=document.getElementById('secondary-results');
 const lookupCells=new Map();
 let activeLookup=0,lookupGridSignature='';
 let divider=document.getElementById('lookup-divider');
+let lookupDetailToken=0;
+function openLookupDetail(id,kind,data){
+  const cell=lookupCells.get(id);if(!cell||!app)return;
+  if(!cell.detail){
+    const saved=document.createDocumentFragment(),scroll=cell.output.scrollTop;
+    while(cell.output.firstChild)saved.append(cell.output.firstChild);
+    cell.detail={saved,scroll};
+  }
+  const token=++lookupDetailToken;cell.detail.token=token;
+  const view=document.createElement('div');view.className='lookup-detail';
+  const back=document.createElement('button');back.type='button';back.className='lookup-detail-back';back.textContent='←';back.title='Back to search results';back.setAttribute('aria-label',back.title);back.onclick=()=>closeLookupDetail(id);
+  const body=document.createElement('div');body.className='lookup-detail-body';body.textContent='Loading…';
+  view.append(back,body);cell.output.replaceChildren(view);cell.output.scrollTop=0;showPanel();
+  app.lookup_detail(kind,JSON.stringify(data),id,token);
+}
+function closeLookupDetail(id){
+  const cell=lookupCells.get(id);if(!cell?.detail)return;
+  const {saved,scroll}=cell.detail;cell.detail=null;cell.output.replaceChildren(saved);cell.output.scrollTop=scroll;
+  if(id===0)updateBackToTop();
+}
+function renderLookupDetail(id,token,markup){
+  const cell=lookupCells.get(id);if(!cell?.detail||cell.detail.token!==token)return;
+  cell.output.querySelector('.lookup-detail-body').innerHTML=markup||'<p class="empty">No additional information in this dictionary.</p>';
+}
 
 function activeLookupQuery(){return lookupCells.get(activeLookup)?.input||query;}
 function submitLookup(id){
   const cell=lookupCells.get(id);if(!cell||!app)return;
+  closeLookupDetail(id);
   clearTimeout(cell.timer);
   if(id===0)app.search(cell.input.value);
   else if(id===1)app.search_secondary(cell.input.value);
@@ -146,6 +171,7 @@ function closeExtraLookups(){
 }
 function renderPaneResults(id,markup,expectedQuery){
   const cell=lookupCells.get(id);if(!cell||cell.root.hidden||cell.input.value.trim()!==expectedQuery)return;
+  cell.detail=null;
   const prefix=id===1?'right-dict-':'pane-'+id+'-dict-';
   cell.output.innerHTML=markup.replaceAll('id="dict-','id="'+prefix).replaceAll('href="#dict-','href="#'+prefix);
   cell.output.scrollTop=0;updateDictionaryNavToggle(cell.output);showPanel();

@@ -12,6 +12,14 @@ def glossary(signature):
 
 
 class PitchTests(unittest.TestCase):
+    def test_nhk_formatting_tags_are_not_counted_as_morae(self):
+        self.assertEqual(parse_accents(glossary('<round_box>フ</round_box>トコロ━')),
+                         [(('フ','ト','コ','ロ'),0)])
+        self.assertEqual(parse_accents(glossary('<round_box>フ</round_box>ト＼コロ')),
+                         [(('フ','ト','コ','ロ'),2)])
+        self.assertEqual(parse_accents(glossary('&lt;round_box&gt;フ&lt;/round_box&gt;トコロ━')),
+                         [(('フ','ト','コ','ロ'),0)])
+
     def test_morae_and_accent_patterns(self):
         self.assertEqual(morae('ギャップ'),['ギャ','ッ','プ'])
         self.assertEqual(parse_accents(glossary('セ＼ーブ')),[(('セ','ー','ブ'),1)])

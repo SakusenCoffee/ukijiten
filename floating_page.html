@@ -148,6 +148,7 @@ function applyColorPreview(scope,color){
 function applyPreferences(values) {
   Object.assign(motion, values);
   applyBackgroundAppearance();
+  document.querySelectorAll('.image-picker-control').forEach(group=>updateImagePicker(group,values));
   applyLookupLayout();applyEntryFonts(values);
   for(const key of ['blur_px','avatar_fill_pane','avatar_auto_mirror_sides','avatar_auto_mirror_vertical','background_auto_mirror_sides','background_auto_mirror_vertical']){
     const input=document.querySelector('[data-setting="'+key+'"] input');if(input)input.checked=!!motion[key];
@@ -157,8 +158,8 @@ function applyPreferences(values) {
   if(!motion.background_crossfade)finishBackgroundFade();
   document.querySelectorAll('[data-background-fade]').forEach(input=>input.disabled=!motion.background_crossfade);
   document.querySelectorAll('[data-folder-control]').forEach(control => { control.disabled = !(control.dataset.folderControl === 'background' ? values.background_folder : values.avatar_folder); });
-  const removeAvatar=document.getElementById('remove-avatar-folder');if(removeAvatar)removeAvatar.hidden=!values.avatar_folder;
-  const removeBackground=document.getElementById('remove-background-folder');if(removeBackground)removeBackground.hidden=!values.background_folder;
+  const removeAvatar=document.getElementById('remove-avatar-folder');if(removeAvatar)removeAvatar.disabled=!values.avatar_folder;
+  const removeBackground=document.getElementById('remove-background-folder');if(removeBackground)removeBackground.disabled=!values.background_folder;
   for(const [id,key] of [['edit-avatar-image','avatar'],['edit-background-image','background_image']]){
     const button=document.getElementById(id);if(button)button.disabled=!motion[key];
   }
@@ -181,7 +182,7 @@ function applyBackgroundAppearance(){
   document.documentElement.style.setProperty('--dictionary-image-blur',(motion.dictionary_image_blur||0)+'px');
   document.documentElement.style.setProperty('--dictionary-image-opacity',(motion.dictionary_image_opacity??100)/100);
   const radius=(motion.dictionary_corner_radius??23)+'px',mode=motion.dictionary_corner_mode||'all';
-  panel.style.borderRadius=(mode==='bottom'?'0px 0px '+radius+' '+radius:mode==='top'?radius+' '+radius+' 0px 0px':radius);
+  panel.style.borderRadius=({none:'0px',top:radius+' '+radius+' 0px 0px',bottom:'0px 0px '+radius+' '+radius,left:radius+' 0px 0px '+radius,right:'0px '+radius+' '+radius+' 0px'})[mode]||radius;
 }
 let settingsExpanded = false;
 function paneOrderChanged(values) {
@@ -212,7 +213,7 @@ function closeSettings() {
 function updateBackgroundVisibility(){
   const area=document.getElementById('inline-settings');
   const pane=!area?'dictionary':area.querySelector('#reading-stats')?'stats':area.dataset.page==='translation'?'translation':area.dataset.page==='popup'?'popup':['dictionaries','collapse-defaults'].includes(area.dataset.page)?'dictionary':'settings';
-  panel.classList.toggle('background-image-disabled',motion['background_show_'+pane]===false);
+  panel.classList.toggle('background-image-disabled',motion.background_hidden||motion['background_show_'+pane]===false);
   panel.dataset.backgroundPane=pane;
 }
 function showSettings(values) {
@@ -226,7 +227,7 @@ function showSettings(values) {
   panel.classList.add('settings-open');
   const close = dictionaryBackButton();
   area.append(close);
-  const heading = document.createElement('h2'); heading.textContent = 'Settings'; area.append(heading);
+  const heading = document.createElement('h2'); heading.textContent = 'Appearance'; area.append(heading);
   const fields = [
     ['avatar_fill_pane','Fill avatar pane (keep proportions)','checkbox'],
     ['avatar_auto_mirror_sides','Auto-mirror avatar when swapping sides (⇄)','checkbox'],
@@ -278,23 +279,33 @@ function showSettings(values) {
   const removeAvatar=document.createElement('button');removeAvatar.id='remove-avatar-folder';removeAvatar.textContent='×';removeAvatar.title='Remove avatar folder';removeAvatar.setAttribute('aria-label','Remove avatar folder');removeAvatar.hidden=!values.avatar_folder;removeAvatar.onclick=()=>app.preference('avatar_folder',JSON.stringify(''));
   const avatarToggle=document.createElement('button');avatarToggle.id='avatar-toggle';avatarToggle.textContent='Dict. Only';avatarToggle.setAttribute('aria-pressed',String(values.avatar_enabled===false));
   avatarToggle.onclick=()=>{motion.avatar_enabled=motion.avatar_enabled===false;values.avatar_enabled=motion.avatar_enabled;avatarToggle.classList.toggle('active',!motion.avatar_enabled);app.preference('avatar_enabled',JSON.stringify(motion.avatar_enabled));};
-  const imageToggle=document.createElement('button');imageToggle.id='avatar-image-toggle';imageToggle.textContent=values.avatar_hidden?'Show avatar':'Hide avatar';imageToggle.setAttribute('aria-pressed',String(!values.avatar_hidden));
-  imageToggle.onclick=()=>{motion.avatar_hidden=!motion.avatar_hidden;values.avatar_hidden=motion.avatar_hidden;imageToggle.textContent=motion.avatar_hidden?'Show avatar':'Hide avatar';app.preference('avatar_hidden',JSON.stringify(motion.avatar_hidden));};
   avatarToggle.classList.toggle('active',values.avatar_enabled===false);
   const avatarPicker=document.createElement('div');avatarPicker.className='settings-source-buttons';
-  avatarPicker.append(image,folderPickerControl(folder,removeAvatar));
-  sourceButtons.append(avatarToggle,imageToggle);area.append(avatarPicker,sourceButtons);
-  const editAvatar=document.createElement('button');editAvatar.type='button';editAvatar.id='edit-avatar-image';editAvatar.textContent='Crop / resize…';editAvatar.disabled=!values.avatar;editAvatar.onclick=()=>app.edit_current_image('avatar');sourceButtons.append(editAvatar);
+  avatarPicker.append(imagePickerControl(image,'avatar',values),folderPickerControl(folder,removeAvatar,'avatar',values));
+  sourceButtons.append(avatarToggle);area.append(avatarPicker,sourceButtons);
+  const editAvatar=document.createElement('button');editAvatar.type='button';editAvatar.id='edit-avatar-image';editAvatar.textContent='Crop / resize…';editAvatar.disabled=!values.avatar;editAvatar.onclick=()=>app.edit_current_image('avatar');avatarPicker.append(editAvatar);
   function cornerControls(parent,kind){
     const controls=document.createElement('div');controls.className='pane-corner-controls';
     const caption=document.createElement('label');caption.textContent='Radius';
     const input=document.createElement('input');input.type='number';input.min=0;input.max=120;input.value=values[kind+'_corner_radius']??23;input.setAttribute('aria-label',kind+' corner radius');
     input.oninput=()=>{if(input.value!==''&&input.checkValidity())app.preference(kind+'_corner_radius',JSON.stringify(Number(input.value)));};caption.append(input);controls.append(caption);
-    const checks=[];
-    for(const [mode,title] of [['top','Top only'],['bottom','Bottom only']]){
-      const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.checked=values[kind+'_corner_mode']===mode;check.setAttribute('aria-label',kind+' round '+title.toLowerCase());
-      check.onchange=()=>{const next=check.checked?mode:'all';for(const [otherMode,other] of checks)other.checked=otherMode===next;values[kind+'_corner_mode']=next;app.preference(kind+'_corner_mode',JSON.stringify(next));};
-      checks.push([mode,check]);label.append(check,document.createTextNode(title));controls.append(label);
+    const mode=values[kind+'_corner_mode']||'all';
+    const selected=new Set(mode==='all'?['top','bottom']:mode==='sides'?['left','right']:mode==='none'?[]:[mode]);
+    const buttons=new Map();
+    for(const pair of [['top','bottom'],['left','right']]){
+      const split=document.createElement('div');split.className='corner-split';
+      for(const side of pair){
+        const button=document.createElement('button');button.type='button';button.textContent=side[0].toUpperCase()+side.slice(1);button.setAttribute('aria-label',kind+' round '+side);
+        button.setAttribute('aria-pressed',String(selected.has(side)));
+        button.onclick=()=>{
+          for(const other of (pair[0]==='top'?['left','right']:['top','bottom']))selected.delete(other);
+          if(selected.has(side))selected.delete(side);else selected.add(side);
+          const next=selected.size===2?(pair[0]==='top'?'all':'sides'):selected.size?[...selected][0]:'none';
+          for(const [key,control] of buttons)control.setAttribute('aria-pressed',String(selected.has(key)));
+          values[kind+'_corner_mode']=next;app.preference(kind+'_corner_mode',JSON.stringify(next));
+        };
+        buttons.set(side,button);split.append(button);
+      }controls.append(split);
     }
     parent.append(controls);
   }
@@ -373,8 +384,8 @@ function showSettings(values) {
   const removeBackground=document.createElement('button');removeBackground.id='remove-background-folder';removeBackground.textContent='×';removeBackground.title='Remove background folder';removeBackground.setAttribute('aria-label','Remove background folder');removeBackground.hidden=!values.background_folder;
   removeBackground.onclick=()=>app.remove_background();
   const backgroundPicker=document.createElement('div');backgroundPicker.className='settings-source-buttons';
-  backgroundPicker.append(backgroundImage,folderPickerControl(backgroundFolder,removeBackground));
-  const editBackground=document.createElement('button');editBackground.type='button';editBackground.id='edit-background-image';editBackground.textContent='Crop / resize…';editBackground.disabled=!values.background_image;editBackground.onclick=()=>app.edit_current_image('background');backgroundButtons.append(editBackground);
+  backgroundPicker.append(imagePickerControl(backgroundImage,'background',values),folderPickerControl(backgroundFolder,removeBackground,'background',values));
+  const editBackground=document.createElement('button');editBackground.type='button';editBackground.id='edit-background-image';editBackground.textContent='Crop / resize…';editBackground.disabled=!values.background_image;editBackground.onclick=()=>app.edit_current_image('background');backgroundPicker.append(editBackground);
   cornerControls(backgroundButtons,'dictionary');
   sourceStatus.after(backgroundButtons);
   fontHeading.before(avatarPicker,sourceButtons,status,backgroundPicker,backgroundButtons);
@@ -500,7 +511,7 @@ navbar.addEventListener('pointerleave',leaveNavbar);
 panel.addEventListener('pointerleave',()=>leaveNavbar());
 navbar.addEventListener('focusin',revealNavbar);
 function applyLookupLayout() {
-  const imageToggle=document.getElementById('avatar-image-toggle');if(imageToggle){imageToggle.textContent=motion.avatar_hidden?'Show avatar':'Hide avatar';imageToggle.setAttribute('aria-pressed',String(!motion.avatar_hidden));}
+  document.querySelectorAll('.image-picker-control').forEach(group=>updateImagePicker(group,motion));
   const avatarButton=document.getElementById('avatar-toggle');if(avatarButton){avatarButton.setAttribute('aria-pressed',String(motion.avatar_enabled===false));avatarButton.textContent='Dict. Only';avatarButton.classList.toggle('active',motion.avatar_enabled===false);}
   applyLookupGrid();
   const fadeButton=document.getElementById('navbar-hide');fadeButton.classList.remove('active');fadeButton.setAttribute('aria-pressed',String(!!motion.navbar_auto_hide));
@@ -769,6 +780,7 @@ document.getElementById('results').addEventListener('click', event => {
 });
 function renderResults(markup, expectedQuery) {
   if (expectedQuery !== undefined && query.value.trim() !== expectedQuery) return;
+  lookupCells.get(0).detail=null;
   results.innerHTML = markup;
   animatePaneContent(results);
   results.scrollTop = 0;

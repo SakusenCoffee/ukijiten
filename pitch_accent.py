@@ -35,6 +35,7 @@ def accent_signatures(node):
 def parse_accents(glossary):
     variants=[]
     for signature in accent_signatures(json.loads(glossary)):
+        signature=re.sub(r'<[^>]*>','',html.unescape(signature))
         for accent in re.split(r'\s*\|\s*|\s+/\s+',signature):
             if '＼' in accent:
                 before,after=accent.split('＼',1)
